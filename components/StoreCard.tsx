@@ -4,6 +4,8 @@ type Product = {
   price: number;
   emoji: string;
   stock: number;
+  category?: string;
+  status?: string;
 };
 
 export default function StoreCard({ product }: { product: Product }) {
@@ -12,7 +14,7 @@ export default function StoreCard({ product }: { product: Product }) {
       <div className="product-pic">{product.emoji}</div>
       <div>
         <h3>{product.name}</h3>
-        <p>المخزون: {product.stock}</p>
+        <p>{product.category || "منتج"} · المخزون: {product.stock}</p>
       </div>
       <strong>{product.price} ر.س</strong>
       <button className="btn small">أضف للسلة</button>

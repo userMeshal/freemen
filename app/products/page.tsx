@@ -1,32 +1,39 @@
+import DashboardShell from "@/components/DashboardShell";
 import { demoStore } from "@/lib/data";
-import StoreCard from "@/components/StoreCard";
 
 export default function ProductsPage() {
   return (
-    <main className="wrap">
-      <section>
-        <h1>إدارة المنتجات</h1>
-        <p className="lead">هذي صفحة أولية لإضافة المنتجات. حاليًا النموذج شكلي، وبعد الربط بقاعدة البيانات بيحفظ فعليًا.</p>
-
-        <div className="panel">
-          <h2>إضافة منتج جديد</h2>
-          <form className="form">
-            <input className="input" placeholder="اسم المنتج" />
-            <input className="input" placeholder="السعر" />
-            <input className="input" placeholder="الكمية" />
-            <input className="input" placeholder="رابط الصورة أو ارفع صورة لاحقًا" />
-            <textarea className="input full" placeholder="وصف المنتج" rows={4}></textarea>
-            <button className="btn full" type="button">حفظ المنتج</button>
-          </form>
+    <DashboardShell title="المنتجات" subtitle="أضف منتجاتك، صنفها، وعدل الأسعار والمخزون.">
+      <div className="toolbar">
+        <div className="search-row">
+          <input className="input" placeholder="ابحث عن منتج" />
+          <select className="input"><option>كل التصنيفات</option><option>هدايا</option><option>ماتشا</option></select>
         </div>
+        <button className="btn">إضافة منتج</button>
+      </div>
 
-        <h2 className="section-title">منتجات المتجر</h2>
-        <div className="products-grid">
-          {demoStore.products.map((product) => (
-            <StoreCard key={product.id} product={product} />
-          ))}
-        </div>
-      </section>
-    </main>
+      <div className="panel">
+        <form className="form">
+          <input className="input" placeholder="اسم المنتج" />
+          <input className="input" placeholder="السعر" />
+          <input className="input" placeholder="المخزون" />
+          <input className="input" placeholder="التصنيف" />
+          <textarea className="input full" rows={4} placeholder="وصف المنتج"></textarea>
+          <button className="btn full" type="button">حفظ المنتج</button>
+        </form>
+      </div>
+
+      <div className="panel">
+        <h2>قائمة المنتجات</h2>
+        <table>
+          <thead><tr><th>المنتج</th><th>التصنيف</th><th>السعر</th><th>المخزون</th><th>الحالة</th></tr></thead>
+          <tbody>
+            {demoStore.products.map((p) => (
+              <tr key={p.id}><td>{p.emoji} {p.name}</td><td>{p.category}</td><td>{p.price} ر.س</td><td>{p.stock}</td><td>{p.status}</td></tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </DashboardShell>
   );
 }

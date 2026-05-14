@@ -1,40 +1,19 @@
+import DashboardShell from "@/components/DashboardShell";
+
 export default function SettingsPage() {
   return (
-    <main className="wrap">
-      <section>
-        <h1>إعدادات المتجر</h1>
-        <p className="lead">تعديل بيانات المتجر، السياسات، وروابط التواصل.</p>
-
-        <div className="panel">
-          <form className="form">
-            <div>
-              <label className="label">اسم المتجر</label>
-              <input className="input" defaultValue="Swan Matcha" />
-            </div>
-            <div>
-              <label className="label">رابط المتجر</label>
-              <input className="input" defaultValue="swan" />
-            </div>
-            <div>
-              <label className="label">رقم واتساب</label>
-              <input className="input" placeholder="05xxxxxxxx" />
-            </div>
-            <div>
-              <label className="label">إنستقرام</label>
-              <input className="input" placeholder="@username" />
-            </div>
-            <div className="full">
-              <label className="label">سياسة الشحن</label>
-              <textarea className="input" rows={4} placeholder="مثال: الشحن خلال 2-5 أيام عمل"></textarea>
-            </div>
-            <div className="full">
-              <label className="label">سياسة الاستبدال والاسترجاع</label>
-              <textarea className="input" rows={4} placeholder="اكتب سياسة المتجر"></textarea>
-            </div>
-            <button className="btn full" type="button">حفظ الإعدادات</button>
-          </form>
-        </div>
-      </section>
-    </main>
+    <DashboardShell title="إعدادات المتجر" subtitle="تعديل بيانات المتجر، الروابط، والسياسات العامة.">
+      <div className="panel">
+        <form className="form">
+          <input className="input" defaultValue="Swan Matcha" placeholder="اسم المتجر" />
+          <input className="input" defaultValue="swan" placeholder="رابط المتجر" />
+          <input className="input" placeholder="رقم واتساب" />
+          <input className="input" placeholder="إنستقرام" />
+          <textarea className="input full" rows={4} placeholder="سياسة الشحن"></textarea>
+          <textarea className="input full" rows={4} placeholder="سياسة الاستبدال والاسترجاع"></textarea>
+          <button className="btn full" type="button">حفظ الإعدادات</button>
+        </form>
+      </div>
+    </DashboardShell>
   );
 }

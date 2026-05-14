@@ -10,7 +10,7 @@ export default function HomePage() {
           <h1>افتح متجرك الإلكتروني خلال دقائق.</h1>
           <p className="lead">
             فريمان تعطي التاجر متجر جاهز، منتجات، طلبات، دفع، وتحويلات أسرع.
-            والعميل يقدر يطلب بضمان مرسال لحماية مبلغ الطلب حتى الاستلام.
+            والعميل يقدر يطلب بضمان فريمان لحماية مبلغ الطلب حتى الاستلام.
           </p>
           <div className="actions">
             <Link className="btn" href="/dashboard">جرّب لوحة التاجر</Link>
@@ -48,7 +48,7 @@ export default function HomePage() {
         <p className="section-sub">الفكرة مب بس متجر، الفكرة تجيب التاجر بسبب سرعة الفلوس وسهولة البيع.</p>
         <div className="grid3">
           <div className="card feature"><h3>تحويلات أسرع</h3><p>التاجر الموثق يقدر يحصل على تحويل يومي حسب الباقة والثقة.</p></div>
-          <div className="card feature"><h3>ضمان مرسال</h3><p>خيار للعميل يحمي مبلغ الطلب حتى تأكيد الاستلام، برسوم بسيطة.</p></div>
+          <div className="card feature"><h3>ضمان فريمان</h3><p>خيار للعميل يحمي مبلغ الطلب حتى تأكيد الاستلام، برسوم بسيطة.</p></div>
           <div className="card feature"><h3>متجر جاهز</h3><p>رابط متجر، منتجات، صور، طلبات، حالات شحن، ولوحة تاجر بسيطة.</p></div>
         </div>
       </section>
