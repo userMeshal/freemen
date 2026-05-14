@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Freeman | فريمان</title>
+  <style>
+    :root{
+      --bg:#f5f5f5;
+      --card:#ffffff;
+      --ink:#111111;
+      --muted:#5e5e5e;
+      --line:#dddddd;
+      --accent:#111111;
+      --soft:#f0f0f0;
+      --ok:#1f7a4f;
+      --danger:#9d2525;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Tahoma,Arial,sans-serif;
+      background:var(--bg);
+      color:var(--ink);
+      line-height:1.8;
+    }
+    a{text-decoration:none;color:inherit}
+    .topbar{
+      position:sticky;top:0;z-index:10;
+      backdrop-filter:blur(14px);
+      background:rgba(245,245,245,.88);
+      border-bottom:1px solid var(--line);
+    }
+    .nav{
+      max-width:1180px;margin:auto;
+      display:flex;align-items:center;justify-content:space-between;
+      padding:16px 20px;
+    }
+    .brand{display:flex;align-items:center;gap:10px;font-weight:900;font-size:21px}
+    .logo{
+      width:38px;height:38px;border-radius:12px;
+      background:#111;
+      display:grid;place-items:center;color:white;font-weight:900;
+      box-shadow:0 10px 24px rgba(0,0,0,.14);
+    }
+    .navlinks{display:flex;gap:22px;color:var(--muted);font-size:14px}
+    .btn{
+      display:inline-flex;align-items:center;justify-content:center;gap:8px;
+      border:1px solid var(--accent);
+      background:var(--accent);color:white;
+      padding:12px 18px;border-radius:999px;
+      font-weight:800;cursor:pointer;
+    }
+    .btn.secondary{background:white;color:var(--accent)}
+    .wrap{max-width:1180px;margin:auto;padding:0 20px}
+    .hero{
+      display:grid;grid-template-columns:1.05fr .95fr;gap:40px;
+      align-items:center;padding:72px 0 44px;
+    }
+    .badge{
+      display:inline-flex;align-items:center;gap:8px;
+      border:1px solid var(--line);background:white;
+      padding:8px 12px;border-radius:999px;color:var(--muted);
+      font-size:13px;font-weight:700;
+    }
+    h1{font-size:58px;line-height:1.15;margin:18px 0 14px;letter-spacing:-1.6px}
+    .lead{font-size:20px;color:var(--muted);max-width:650px}
+    .actions{display:flex;gap:12px;margin-top:26px;flex-wrap:wrap}
+    .mini{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:28px}
+    .mini div,.card{
+      background:#fff;border:1px solid var(--line);border-radius:24px;padding:18px;
+      box-shadow:0 18px 45px rgba(0,0,0,.04);
+    }
+    .mini strong{display:block;font-size:24px}
+    .mini span{font-size:13px;color:var(--muted)}
+    .mock{
+      background:linear-gradient(180deg,#ffffff,#f2f2f2);
+      border:1px solid var(--line);border-radius:34px;padding:18px;
+      box-shadow:0 28px 70px rgba(0,0,0,.08);
+    }
+    .browser{background:#fff;border-radius:24px;overflow:hidden;border:1px solid var(--line)}
+    .dots{display:flex;gap:6px;padding:14px;border-bottom:1px solid var(--line)}
+    .dots i{width:10px;height:10px;border-radius:50%;background:#cfcfcf}
+    .store-head{
+      min-height:130px;background:linear-gradient(135deg,#111,#3a3a3a);
+      color:white;padding:22px;
+    }
+    .store-head h3{margin:0;font-size:28px}
+    .store-head p{margin:4px 0 0;color:rgba(255,255,255,.8)}
+    .products{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;padding:14px}
+    .product{
+      background:#fafafa;border:1px solid var(--line);border-radius:18px;padding:12px
+    }
+    .pic{height:94px;border-radius:14px;background:linear-gradient(135deg,#ededed,#ffffff);display:grid;place-items:center;font-size:34px}
+    .product b{display:block;margin-top:8px}
+    .product span{color:var(--muted);font-size:13px}
+    section{padding:42px 0}
+    .section-title{font-size:38px;margin:0 0 8px}
+    .section-sub{color:var(--muted);margin:0 0 22px;font-size:17px}
+    .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+    .feature h3,.price h3{margin:0 0 8px;font-size:22px}
+    .feature p,.price p{color:var(--muted);margin:0}
+    .price{position:relative;overflow:hidden}
+    .price.popular{border:2px solid #111;background:#fff}
+    .tag{
+      position:absolute;top:16px;left:16px;background:#111;color:white;
+      padding:6px 10px;border-radius:999px;font-size:12px;font-weight:800
+    }
+    .money{font-size:36px;font-weight:950;margin:14px 0}
+    ul{padding:0 18px;margin:16px 0;color:var(--muted)}
+    .dashboard{
+      display:grid;grid-template-columns:260px 1fr;gap:16px;
+      background:#fff;border:1px solid var(--line);border-radius:30px;padding:16px;
+      box-shadow:0 20px 60px rgba(0,0,0,.06)
+    }
+    .side{background:#fafafa;border-radius:22px;padding:16px;border:1px solid var(--line)}
+    .side a{display:block;padding:12px;border-radius:14px;color:var(--muted);font-weight:800}
+    .side a.active{background:#111;color:white}
+    .dash-main{padding:6px}
+    .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+    .stat{background:#fafafa;border:1px solid var(--line);border-radius:18px;padding:14px}
+    .stat span{color:var(--muted);font-size:13px}
+    .stat b{display:block;font-size:24px}
+    table{width:100%;border-collapse:separate;border-spacing:0 10px;margin-top:14px}
+    th{color:var(--muted);font-size:13px;text-align:right;font-weight:800}
+    td{background:#fafafa;padding:12px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+    td:first-child{border-radius:0 14px 14px 0;border-right:1px solid var(--line)}
+    td:last-child{border-radius:14px 0 0 14px;border-left:1px solid var(--line)}
+    .footer{padding:34px 0;border-top:1px solid var(--line);color:var(--muted);text-align:center}
+    @media(max-width:900px){
+      .hero,.grid3,.dashboard{grid-template-columns:1fr}
+      .stats{grid-template-columns:repeat(2,1fr)}
+      h1{font-size:42px}
+      .navlinks{display:none}
+      .mini{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <nav class="nav">
+      <a class="brand" href="#"><span class="logo">F</span> فريمان</a>
+      <div class="navlinks">
+        <a href="#features">المميزات</a>
+        <a href="#pricing">الباقات</a>
+        <a href="#dashboard">لوحة التاجر</a>
+        <a href="#demo">متجر تجريبي</a>
+      </div>
+      <a class="btn" href="#pricing">ابدأ الآن</a>
+    </nav>
+  </header>
+
+  <main class="wrap">
+    <section class="hero">
+      <div>
+        <span class="badge">⚡ منصة متاجر للتجار الصغار</span>
+        <h1>افتح متجرك الإلكتروني خلال دقائق.</h1>
+        <p class="lead">
+          فريمان تعطي التاجر متجر جاهز، منتجات، طلبات، دفع، وتحويلات أسرع.
+          والعميل يقدر يطلب بضمان المنصة لحماية مبلغ الطلب حتى الاستلام.
+        </p>
+        <div class="actions">
+          <a class="btn" href="#dashboard">جرّب لوحة التاجر</a>
+          <a class="btn secondary" href="#demo">شوف متجر تجريبي</a>
+        </div>
+        <div class="mini">
+          <div><strong>10 دقائق</strong><span>لإنشاء متجر تقريبي</span></div>
+          <div><strong>يومي</strong><span>تحويلات أسرع للتجار الموثقين</span></div>
+          <div><strong>ضمان</strong><span>حماية اختيارية للعميل</span></div>
+        </div>
+      </div>
+
+      <div class="mock" id="demo">
+        <div class="browser">
+          <div class="dots"><i></i><i></i><i></i></div>
+          <div class="store-head">
+            <h3>Swan Matcha</h3>
+            <p>متجر ماتشا فاخر — Powered by Freeman</p>
+          </div>
+          <div class="products">
+            <div class="product"><div class="pic">🍵</div><b>Matcha Bowl</b><span>149 ر.س</span></div>
+            <div class="product"><div class="pic">🦢</div><b>Swan Box</b><span>89 ر.س</span></div>
+            <div class="product"><div class="pic">🥤</div><b>Cold Matcha Cup</b><span>39 ر.س</span></div>
+            <div class="product"><div class="pic">🎁</div><b>Gift Set</b><span>199 ر.س</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="features">
+      <h2 class="section-title">وش يميّز منصتك؟</h2>
+      <p class="section-sub">الفكرة مب بس متجر، الفكرة تجيب التاجر بسبب سرعة الفلوس وسهولة البيع.</p>
+      <div class="grid3">
+        <div class="card feature">
+          <h3>تحويلات أسرع</h3>
+          <p>التاجر الموثق يقدر يحصل على تحويل يومي حسب الباقة والثقة.</p>
+        </div>
+        <div class="card feature">
+          <h3>ضمان المنصة</h3>
+          <p>خيار للعميل يحمي مبلغ الطلب حتى تأكيد الاستلام، برسوم بسيطة.</p>
+        </div>
+        <div class="card feature">
+          <h3>متجر جاهز</h3>
+          <p>رابط متجر، منتجات، صور، طلبات، حالات شحن، ولوحة تاجر بسيطة.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="pricing">
+      <h2 class="section-title">الباقات</h2>
+      <p class="section-sub">نموذج ربح واضح: اشتراك + عمولة + رسوم ضمان اختيارية.</p>
+      <div class="grid3">
+        <div class="card price">
+          <h3>Free</h3>
+          <p>للتجربة والبداية</p>
+          <div class="money">0 ر.س</div>
+          <ul>
+            <li>حتى 20 منتج</li>
+            <li>تحويل بعد 7 أيام</li>
+            <li>عمولة 2.5%</li>
+          </ul>
+          <a class="btn secondary" href="#">ابدأ مجاني</a>
+        </div>
+        <div class="card price popular">
+          <span class="tag">الأفضل</span>
+          <h3>Pro</h3>
+          <p>للتاجر الجاد</p>
+          <div class="money">99 ر.س</div>
+          <ul>
+            <li>حتى 100 منتج</li>
+            <li>تحويل خلال 48 ساعة</li>
+            <li>عمولة 1.5%</li>
+          </ul>
+          <a class="btn" href="#">اختر Pro</a>
+        </div>
+        <div class="card price">
+          <h3>Business</h3>
+          <p>للمتاجر النشطة</p>
+          <div class="money">199 ر.س</div>
+          <ul>
+            <li>منتجات غير محدودة</li>
+            <li>تحويل يومي</li>
+            <li>عمولة 1%</li>
+          </ul>
+          <a class="btn secondary" href="#">اختر Business</a>
+        </div>
+      </div>
+    </section>
+
+    <section id="dashboard">
+      <h2 class="section-title">لوحة التاجر التقريبية</h2>
+      <p class="section-sub">هذا تصور أولي للشاشة اللي بيشوفها التاجر بعد التسجيل.</p>
+      <div class="dashboard">
+        <aside class="side">
+          <a class="active" href="#">الرئيسية</a>
+          <a href="#">المنتجات</a>
+          <a href="#">الطلبات</a>
+          <a href="#">المدفوعات</a>
+          <a href="#">إعدادات المتجر</a>
+        </aside>
+        <div class="dash-main">
+          <div class="stats">
+            <div class="stat"><span>مبيعات اليوم</span><b>1,245 ر.س</b></div>
+            <div class="stat"><span>طلبات جديدة</span><b>14</b></div>
+            <div class="stat"><span>مبلغ قابل للتحويل</span><b>920 ر.س</b></div>
+            <div class="stat"><span>حالة التاجر</span><b>موثق</b></div>
+          </div>
+          <table>
+            <thead>
+              <tr><th>الطلب</th><th>العميل</th><th>المبلغ</th><th>الحالة</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>#1024</td><td>نورة</td><td>199 ر.س</td><td>تم الدفع</td></tr>
+              <tr><td>#1025</td><td>سارة</td><td>89 ر.س</td><td>قيد التجهيز</td></tr>
+              <tr><td>#1026</td><td>هند</td><td>149 ر.س</td><td>تم الشحن</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    © 2026 Freeman — Prototype UI
+  </footer>
+</body>
+</html>

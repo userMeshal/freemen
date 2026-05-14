@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>طريقة نشر فريمان</title>
+  <style>
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Tahoma,Arial,sans-serif;background:#f5f5f5;color:#111;line-height:1.9;margin:0}
+    .wrap{max-width:850px;margin:auto;padding:30px 18px}
+    .card{background:#fff;border:1px solid #ddd;border-radius:24px;padding:22px;margin:16px 0}
+    h1{font-size:34px;margin:0 0 10px}
+    h2{font-size:24px;margin:0 0 10px}
+    code{background:#eee;border-radius:8px;padding:3px 7px;direction:ltr;display:inline-block}
+    .step{border-right:5px solid #111}
+    .warn{background:#fff8d8;border-color:#ead37a}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <div class="card">
+      <h1>طريقة نشر منصة فريمان</h1>
+      <p>هذه الخطوات للمبتدئ من الصفر. تحتاج ماك بوك، حساب GitHub، وحساب Vercel.</p>
+    </div>
+
+    <div class="card step">
+      <h2>1) فك الضغط</h2>
+      <p>فك ملف <code>freeman-deploy-ready.zip</code> على سطح المكتب.</p>
+    </div>
+
+    <div class="card step">
+      <h2>2) افتح GitHub</h2>
+      <p>سجل دخولك في GitHub، ثم اضغط New Repository.</p>
+      <p>اسم المستودع: <code>freeman</code></p>
+      <p>خله Public أو Private عادي.</p>
+    </div>
+
+    <div class="card step">
+      <h2>3) ارفع ملفات المشروع</h2>
+      <p>ادخل المستودع الجديد، اضغط <code>uploading an existing file</code>.</p>
+      <p>اسحب كل الملفات اللي داخل مجلد المشروع، مو ملف ZIP نفسه.</p>
+      <p>لازم تشوف ملف <code>package.json</code> ظاهر في الصفحة الرئيسية للمستودع.</p>
+    </div>
+
+    <div class="card step">
+      <h2>4) افتح Vercel</h2>
+      <p>سجل دخولك في Vercel بنفس حساب GitHub.</p>
+      <p>اضغط Add New ثم Project.</p>
+      <p>اختر مشروع <code>freeman</code> من GitHub.</p>
+    </div>
+
+    <div class="card step">
+      <h2>5) إعدادات النشر</h2>
+      <p>Vercel غالبًا يتعرف عليه تلقائيًا كـ Next.js.</p>
+      <p>خلي الإعدادات كذا:</p>
+      <p>Framework: <code>Next.js</code></p>
+      <p>Build Command: <code>npm run build</code></p>
+      <p>Install Command: <code>npm install</code></p>
+      <p>Output Directory: اتركه فاضي</p>
+    </div>
+
+    <div class="card step">
+      <h2>6) اضغط Deploy</h2>
+      <p>بعدها انتظر لين يطلع لك رابط مثل:</p>
+      <p><code>https://freeman.vercel.app</code></p>
+      <p>كذا صار عندك رابط حقيقي.</p>
+    </div>
+
+    <div class="card warn">
+      <h2>إذا طلع خطأ</h2>
+      <p>أرسل صورة الخطأ، وأهم شيء تأكد إن ملف <code>package.json</code> موجود في الصفحة الرئيسية للمستودع في GitHub.</p>
+    </div>
+  </main>
+</body>
+</html>
