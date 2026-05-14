@@ -14,7 +14,7 @@ const links = [
   { href: "/analytics", label: "التقارير" },
   { href: "/apps", label: "التطبيقات" },
   { href: "/settings", label: "الإعدادات" },
-  { href: "/admin", label: "إدارة فريمان" },
+  { href: "/admin", label: "إدارة فريمان" }
 ];
 
 export default function DashboardShell({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
@@ -29,16 +29,9 @@ export default function DashboardShell({ title, subtitle, children }: { title: s
           </div>
           <Link className="btn secondary" href="/store/swan">عرض المتجر</Link>
         </div>
-
         <div className="dashboard pro-dashboard">
-          <aside className="side">
-            {links.map((link) => (
-              <Link key={link.href} href={link.href}>{link.label}</Link>
-            ))}
-          </aside>
-          <div className="dash-main">
-            {children}
-          </div>
+          <aside className="side">{links.map((l) => <Link key={l.href} href={l.href}>{l.label}</Link>)}</aside>
+          <div className="dash-main">{children}</div>
         </div>
       </section>
     </main>

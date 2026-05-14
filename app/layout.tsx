@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import Nav from "@/components/Nav";
+import Nav from "../components/Nav";
 
 export const metadata: Metadata = {
   title: "فريمان | منصة متاجر إلكترونية",
-  description: "منصة تساعد التجار الصغار على فتح متجر إلكتروني خلال دقائق.",
+  description: "منصة متاجر إلكترونية للتجار الصغار."
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
