@@ -6,7 +6,8 @@ import type { Listing, Offer } from './data';
 import { StoreCtx, useToasts, type Ctx, type Me } from './ctx';
 
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+// Supabase يسمّي المفتاح العلني publishable في المشاريع الجديدة و anon في القديمة
+const KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 /** null لو ما انضبطت متغيرات Supabase — وقتها الموقع يشتغل بالوضع التجريبي */
 export const supabase: SupabaseClient | null = URL && KEY ? createClient(URL, KEY) : null;

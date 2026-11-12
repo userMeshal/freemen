@@ -27,8 +27,8 @@ npm run dev      # http://localhost:3000
 1. أنشئ مشروع في [supabase.com](https://supabase.com).
 2. **SQL Editor** ← الصق محتوى `supabase/schema.sql` كامل ← **Run**.
 3. **Authentication ← Sign In / Providers ← Email** ← اطفئ **Confirm email** (إيميلات Supabase المجانية محدودة جداً بالساعة).
-4. من **Project Settings ← API** انسخ `Project URL` ومفتاح `anon public`.
-5. في Vercel: **Settings ← Environment Variables** أضف `NEXT_PUBLIC_SUPABASE_URL` و `NEXT_PUBLIC_SUPABASE_ANON_KEY` ثم **Redeploy**.
+4. من زر **Connect** انسخ `Project URL` والمفتاح العلني (`publishable` أو `anon`). لا تستخدم `service_role` أبداً.
+5. حط القيمتين في `.env.production` باسم `NEXT_PUBLIC_SUPABASE_URL` و `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (علنيتين، وهي مضبوطة حالياً على مشروع «بدل»)، أو أضفهم في Vercel ← **Environment Variables**.
 
 للتشغيل المحلي: انسخ `.env.example` إلى `.env.local` وعبّ القيم.
 

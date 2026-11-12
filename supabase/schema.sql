@@ -158,9 +158,13 @@ on conflict (id) do nothing;
 
 drop policy if exists "badal images upload" on storage.objects;
 drop policy if exists "badal images delete" on storage.objects;
+drop policy if exists "badal images read own" on storage.objects;
 -- كل مستخدم يرفع داخل مجلد باسم معرّفه فقط
 create policy "badal images upload" on storage.objects for insert to authenticated
   with check (bucket_id = 'listing-images' and (storage.foldername(name))[1] = auth.uid()::text);
+-- الحذف يحتاج صلاحية قراءة ملفات المستخدم نفسه (العرض العام للصور يتم عبر الرابط العلني)
+create policy "badal images read own" on storage.objects for select to authenticated
+  using (bucket_id = 'listing-images' and (storage.foldername(name))[1] = auth.uid()::text);
 create policy "badal images delete" on storage.objects for delete to authenticated
   using (bucket_id = 'listing-images' and (storage.foldername(name))[1] = auth.uid()::text);
 
