@@ -22,14 +22,18 @@ export function CategoryIcon({ id, size = 20, strokeWidth = 1.6 }: { id: string;
   return <Icon size={size} strokeWidth={strokeWidth} aria-hidden />;
 }
 
-export function Logo({ size = 28 }: { size?: number }) {
+/** شعار بدلني: دائرة مقسومة نصفين يتبادلون الاتجاه — الملفات الأصلية في public/brand */
+export function Logo({ size = 30 }: { size?: number }) {
   return (
     <span className="logo">
-      <svg width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden>
-        <circle cx="16" cy="16" r="16" fill="currentColor" />
-        <path className="logo-arrows" d="M9.5 13h12m0 0-3.2-3.2M21.5 13l-3.2 3.2M22.5 19h-12m0 0 3.2-3.2M10.5 19l3.2 3.2" stroke="var(--bg)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden>
+        <rect width="32" height="32" rx="7.5" fill="currentColor" />
+        <g fill="var(--bg)" stroke="var(--bg)" strokeWidth="1.265" strokeLinejoin="round">
+          <path className="logo-top" d="M11.34 14.505A7.99 7.99 0 0 1 27.33 14.505Z" />
+          <path className="logo-bot" d="M4.67 17.495A7.99 7.99 0 0 0 20.66 17.495Z" />
+        </g>
       </svg>
-      <span className="logo-word">بدل</span>
+      <span className="logo-word">بدلني</span>
     </span>
   );
 }

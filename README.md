@@ -1,4 +1,4 @@
-# بدل — سوق المقايضة السعودي
+# بدلني — سوق المقايضة السعودي
 
 موقع مقايضة بدون مال: تعرض غرضك، تحدد وش تبي بداله (أو تستقبل كل العروض)، يوصلك عروض بدل، تقبل اللي يعجبك وتتبادلون.
 
@@ -28,7 +28,7 @@ npm run dev      # http://localhost:3000
 2. **SQL Editor** ← الصق محتوى `supabase/schema.sql` كامل ← **Run**.
 3. **Authentication ← Sign In / Providers ← Email** ← اطفئ **Confirm email** (إيميلات Supabase المجانية محدودة جداً بالساعة).
 4. من زر **Connect** انسخ `Project URL` والمفتاح العلني (`publishable` أو `anon`). لا تستخدم `service_role` أبداً.
-5. حط القيمتين في `.env.production` باسم `NEXT_PUBLIC_SUPABASE_URL` و `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (علنيتين، وهي مضبوطة حالياً على مشروع «بدل»)، أو أضفهم في Vercel ← **Environment Variables**.
+5. حط القيمتين في `.env.production` باسم `NEXT_PUBLIC_SUPABASE_URL` و `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (علنيتين، وهي مضبوطة حالياً على مشروع «بدلني»)، أو أضفهم في Vercel ← **Environment Variables**.
 
 للتشغيل المحلي: انسخ `.env.example` إلى `.env.local` وعبّ القيم.
 
@@ -41,6 +41,20 @@ npm run dev      # http://localhost:3000
 
 ### غير موجود للحين
 استرجاع كلمة المرور، تعديل العرض بعد نشره، والتبليغ عن عرض مخالف.
+
+## الشعار
+ملفات الشعار في `public/brand/` (وتنفتح من الموقع على `/brand/اسم-الملف`):
+
+| الملف | الاستخدام |
+| :--- | :--- |
+| `badalni-logo` | الشعار الكامل (الرمز + الاسم) على خلفية فاتحة |
+| `badalni-logo-white` | الشعار الكامل على خلفية داكنة |
+| `badalni-icon` / `badalni-icon-white` | أيقونة مربعة — حسابات التواصل وأيقونة التطبيق |
+| `badalni-symbol` / `badalni-symbol-white` | الرمز لوحده بخلفية شفافة |
+| `badalni-wordmark` / `badalni-wordmark-white` | الاسم لوحده |
+
+كل ملف موجود بصيغة SVG (يتكبّر بدون ما يخرب — للطباعة والتصميم)، والأساسية منها PNG بخلفية شفافة.
+الاسم محوّل لمسارات فما يحتاج تثبيت خط. اللون الأسود `#0D0D0D` والأبيض `#FFFFFF`.
 
 ## التقنيات
 Next.js 14 (App Router) · TypeScript · Supabase · Framer Motion · IBM Plex Sans Arabic · وضع فاتح/داكن · RTL

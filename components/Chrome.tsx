@@ -73,7 +73,7 @@ function Nav() {
         transition={{ duration: 0.5, ease: EASE }}
       >
         <div className="nav-inner">
-          <Link href="/" aria-label="بدل — الرئيسية"><Logo /></Link>
+          <Link href="/" aria-label="بدلني — الرئيسية"><Logo /></Link>
           <nav className="nav-links" aria-label="التنقل الرئيسي">
             {links.map((l) => (
               <Link key={l.href} href={l.href} className={pathname === l.href ? 'is-active' : ''}>
@@ -136,10 +136,10 @@ function Footer() {
         </div>
       </div>
       <div className="container footer-bottom">
-        <span>© {new Date().getFullYear()} بدل. صُنع في السعودية.</span>
+        <span>© {new Date().getFullYear()} بدلني. صُنع في السعودية.</span>
         <span>{cloud ? 'بدّل بأمان: قابِل في مكان عام' : 'نسخة تجريبية — البيانات محفوظة على جهازك'}</span>
       </div>
-      <div className="footer-giant" aria-hidden>بدل</div>
+      <div className="footer-giant" aria-hidden>بدلني</div>
     </footer>
   );
 }

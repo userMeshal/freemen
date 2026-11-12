@@ -62,7 +62,7 @@ function Login() {
     <div className="container page">
       <div className="auth">
         <header className="page-head">
-          <span className="eyebrow">حسابك في بدل</span>
+          <span className="eyebrow">حسابك في بدلني</span>
           <h1 className="h2">{mode === 'in' ? 'هلا من جديد' : 'حساب جديد'}</h1>
         </header>
 
