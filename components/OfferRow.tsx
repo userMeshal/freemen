@@ -10,9 +10,14 @@ import { CategoryIcon, EASE } from './ui';
 const STATUS = { pending: 'بانتظار الرد', accepted: 'تم القبول', rejected: 'مرفوض' } as const;
 
 export default function OfferRow({ offer, listing, role }: { offer: Offer; listing?: Listing; role: 'owner' | 'sender' }) {
-  const { setOfferStatus, toast } = useStore();
+  const { setOfferStatus, toast, contactFor } = useStore();
   const f = listing ? fairness(listing.valueTier, offer.valueTier) : null;
-  const wa = listing?.whatsapp?.replace(/\D/g, '').replace(/^0/, '966');
+  const other = role === 'sender' ? listing?.ownerId : offer.fromId;
+  const wa = (other ? contactFor(other) : undefined)?.replace(/\D/g, '').replace(/^0/, '966');
+  const decide = (status: 'accepted' | 'rejected') =>
+    setOfferStatus(offer.id, status)
+      .then(() => status === 'accepted' && toast('مبروك! تم الاتفاق على البدل'))
+      .catch(() => toast('ما قدرنا نحفظ ردّك، حاول مرة ثانية'));
 
   return (
     <motion.div
@@ -43,10 +48,10 @@ export default function OfferRow({ offer, listing, role }: { offer: Offer; listi
 
         {role === 'owner' && offer.status === 'pending' && (
           <div className="offer-actions">
-            <motion.button whileTap={{ scale: 0.95 }} className="btn btn-primary btn-sm" onClick={() => { setOfferStatus(offer.id, 'accepted'); toast('مبروك! تم الاتفاق على البدل'); }}>
+            <motion.button whileTap={{ scale: 0.95 }} className="btn btn-primary btn-sm" onClick={() => decide('accepted')}>
               <Check size={15} /> اقبل البدل
             </motion.button>
-            <motion.button whileTap={{ scale: 0.95 }} className="btn btn-ghost btn-sm" onClick={() => setOfferStatus(offer.id, 'rejected')}>
+            <motion.button whileTap={{ scale: 0.95 }} className="btn btn-ghost btn-sm" onClick={() => decide('rejected')}>
               <X size={15} /> ارفض
             </motion.button>
           </div>
@@ -54,10 +59,10 @@ export default function OfferRow({ offer, listing, role }: { offer: Offer; listi
 
         {offer.status === 'accepted' && (
           <motion.div className="offer-deal" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
-            {role === 'sender' && wa && !offer.demo ? (
+            {wa && !offer.demo ? (
               <a className="btn btn-primary btn-sm" href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer"><MessageCircle size={15} /> تواصل واتساب</a>
             ) : (
-              <span className="deal-hint"><MessageCircle size={14} /> تم الاتفاق — رتّبوا مكان ووقت اللقاء وبدّلوا يد بيد.</span>
+              <span className="deal-hint"><MessageCircle size={14} /> تم الاتفاق — {offer.demo ? 'رتّبوا مكان ووقت اللقاء وبدّلوا يد بيد.' : 'الطرف الثاني ما أضاف رقم واتساب للحين.'}</span>
             )}
           </motion.div>
         )}

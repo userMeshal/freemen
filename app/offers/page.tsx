@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Heart, Inbox, Plus, Send } from 'lucide-react';
+import { Heart, Inbox, LogOut, Plus, Send } from 'lucide-react';
 import OfferRow from '@/components/OfferRow';
 import { ListingArt, ListingCard } from '@/components/ui';
 import { useStore } from '@/lib/store';
@@ -15,17 +15,32 @@ const TABS = [
 ] as const;
 
 export default function OffersPage() {
-  const { listings, offers, all, favs, me, ready } = useStore();
+  const { listings, offers, all, favs, me, ready, cloud, authed, email, signOut } = useStore();
   const [tab, setTab] = useState<(typeof TABS)[number]['id']>('in');
   const sent = offers.filter((o) => o.fromId === me.id);
   const favList = all.filter((l) => favs.includes(l.id));
   const counts = { in: offers.length - sent.length, out: sent.length, fav: favList.length };
 
+  if (ready && !authed) {
+    return (
+      <div className="container page page-narrow empty">
+        <h1 className="h2">سجّل دخولك</h1>
+        <p className="lead">عشان تشوف عروض البدل اللي وصلتك واللي أرسلتها.</p>
+        <Link href="/login?next=/offers" className="btn btn-primary btn-lg">دخول / حساب جديد</Link>
+      </div>
+    );
+  }
+
   return (
     <div className="container page page-narrow">
-      <header className="page-head">
-        <span className="eyebrow">حسابي</span>
-        <h1 className="h2">عروضي</h1>
+      <header className="page-head account-head">
+        <div>
+          <span className="eyebrow">{cloud && me.name ? `هلا ${me.name}` : 'حسابي'}</span>
+          <h1 className="h2">عروضي</h1>
+        </div>
+        {cloud && (
+          <button className="btn btn-ghost btn-sm" onClick={() => signOut()} title={email}><LogOut size={15} /> خروج</button>
+        )}
       </header>
 
       <div className="tabs" role="tablist">

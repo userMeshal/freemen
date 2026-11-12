@@ -13,7 +13,7 @@ import { useStore } from '@/lib/store';
 
 export default function ListingPage({ params }: { params: { id: string } }) {
   const router = useRouter();
-  const { all, ready, me, favs, toggleFav, offersFor, removeListing, toast } = useStore();
+  const { all, ready, me, favs, toggleFav, offersFor, removeListing, toast, authed } = useStore();
   const [open, setOpen] = useState(false);
   const [shot, setShot] = useState(0);
   const listing = all.find((l) => l.id === params.id);
@@ -29,13 +29,13 @@ export default function ListingPage({ params }: { params: { id: string } }) {
     );
   }
 
-  const mine = listing.ownerId === me.id;
+  const mine = !!me.id && listing.ownerId === me.id;
   const offers = offersFor(listing.id);
   const myOffer = offers.find((o) => o.fromId === me.id);
   const fav = favs.includes(listing.id);
   const cat = catById(listing.category);
   const similar = all.filter((l) => l.category === listing.category && l.id !== listing.id).slice(0, 4);
-  const total = (listing.seedOffers ?? 0) + offers.length;
+  const total = listing.offersCount ?? (listing.seedOffers ?? 0) + offers.length;
 
   return (
     <div className="container page">
@@ -80,13 +80,13 @@ export default function ListingPage({ params }: { params: { id: string } }) {
             {mine ? (
               <>
                 <Link href="/offers" className="btn btn-primary btn-lg">شوف العروض اللي وصلتك ({offers.length})</Link>
-                <button className="btn btn-ghost btn-lg" onClick={() => { removeListing(listing.id); toast('انحذف العرض'); router.push('/offers'); }}>
+                <button className="btn btn-ghost btn-lg" onClick={() => removeListing(listing.id).then(() => { toast('انحذف العرض'); router.push('/offers'); }).catch(() => toast('ما انحذف العرض، حاول مرة ثانية'))}>
                   <Trash2 size={17} /> حذف
                 </button>
               </>
             ) : (
               <>
-                <motion.button className="btn btn-primary btn-lg" whileTap={{ scale: 0.97 }} onClick={() => setOpen(true)} disabled={!!myOffer}>
+                <motion.button className="btn btn-primary btn-lg" whileTap={{ scale: 0.97 }} onClick={() => (authed ? setOpen(true) : router.push(`/login?next=/listing/${listing.id}`))} disabled={!!myOffer}>
                   <Repeat2 size={18} /> {myOffer ? 'أرسلت عرضك' : 'اعرض بدلك'}
                 </motion.button>
                 <motion.button className={`btn btn-ghost btn-lg ${fav ? 'is-fav' : ''}`} whileTap={{ scale: 0.94 }} onClick={() => toggleFav(listing.id)} aria-pressed={fav}>

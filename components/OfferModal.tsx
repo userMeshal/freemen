@@ -17,6 +17,7 @@ export default function OfferModal({ listing, onClose }: { listing: Listing; onC
   const [note, setNote] = useState('');
   const [name, setName] = useState(me.name);
   const [image, setImage] = useState<string>();
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -30,13 +31,19 @@ export default function OfferModal({ listing, onClose }: { listing: Listing; onC
 
   const valid = title.trim().length > 1 && name.trim().length > 1;
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!valid) return;
-    setMe({ name: name.trim() });
-    addOffer({ listingId: listing.id, fromName: name.trim(), itemTitle: title.trim(), itemCategory: category, itemCondition: condition, valueTier: tier, note: note.trim(), image });
-    toast('انرسل عرض البدل');
-    onClose();
+    if (!valid || busy) return;
+    setBusy(true);
+    try {
+      if (name.trim() !== me.name) await setMe({ name: name.trim() });
+      await addOffer({ listingId: listing.id, fromName: name.trim(), itemTitle: title.trim(), itemCategory: category, itemCondition: condition, valueTier: tier, note: note.trim(), image });
+      toast('انرسل عرض البدل');
+      onClose();
+    } catch {
+      toast('ما انرسل العرض، حاول مرة ثانية');
+      setBusy(false);
+    }
   };
 
   return createPortal(
@@ -124,7 +131,7 @@ export default function OfferModal({ listing, onClose }: { listing: Listing; onC
           </label>
         </div>
 
-        <button className="btn btn-primary btn-lg btn-block" disabled={!valid}>أرسل عرض البدل</button>
+        <button className="btn btn-primary btn-lg btn-block" disabled={!valid || busy}>{busy ? 'جاري الإرسال…' : 'أرسل عرض البدل'}</button>
       </motion.form>
     </motion.div>,
     document.body,

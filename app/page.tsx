@@ -121,7 +121,7 @@ function Bento() {
 }
 
 export default function Home() {
-  const { all } = useStore();
+  const { all, ready } = useStore();
   const heroRef = useRef<HTMLElement>(null);
   const { scrollYProgress } = useScroll({ target: heroRef, offset: ['start start', 'end start'] });
   const orbY = useTransform(scrollYProgress, [0, 1], [0, 180]);
@@ -185,6 +185,13 @@ export default function Home() {
         <div className="grid">
           {all.slice(0, 8).map((l, i) => <ListingCard key={l.id} listing={l} index={i} />)}
         </div>
+        {ready && all.length === 0 && (
+          <div className="empty">
+            <h3>السوق توّه فاتح</h3>
+            <p>كن أول من يعرض غرض على بدل.</p>
+            <Link href="/new" className="btn btn-primary">اعرض غرضك</Link>
+          </div>
+        )}
       </section>
 
       <Bento />
