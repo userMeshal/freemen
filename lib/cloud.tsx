@@ -32,11 +32,13 @@ const OFFER_COLS = '*, sender:profiles(name)';
 
 function authError(message: string) {
   const m = message.toLowerCase();
+  if (m.includes('rate limit')) return 'محاولات كثيرة — انتظر شوي وحاول مرة ثانية';
   if (m.includes('invalid login')) return 'الإيميل أو كلمة المرور غلط';
   if (m.includes('already registered') || m.includes('already been registered')) return 'هذا الإيميل مسجّل من قبل — جرّب تسجيل الدخول';
+  if (m.includes('different from the old')) return 'اختر كلمة مرور غير القديمة';
+  if (m.includes('session')) return 'انتهت صلاحية الرابط — اطلب رابط جديد';
   if (m.includes('password')) return 'كلمة المرور لازم تكون 6 أحرف أو أكثر';
   if (m.includes('email not confirmed')) return 'فعّل حسابك من الرابط اللي وصلك على الإيميل';
-  if (m.includes('rate limit')) return 'محاولات كثيرة — انتظر شوي وحاول مرة ثانية';
   if (m.includes('invalid') && m.includes('email')) return 'صيغة الإيميل مو صحيحة';
   return 'صار خطأ، حاول مرة ثانية';
 }
@@ -221,7 +223,17 @@ export function CloudProvider({ children }: { children: React.ReactNode }) {
       await sb.auth.signOut();
     };
 
-    return { setMe, addListing, removeListing, addOffer, setOfferStatus, toggleFav, signIn, signUp, signOut };
+    const resetPassword: Ctx['resetPassword'] = async (mail) => {
+      const { error } = await sb.auth.resetPasswordForEmail(mail.trim(), { redirectTo: `${window.location.origin}/reset` });
+      return error ? authError(error.message) : null;
+    };
+
+    const updatePassword: Ctx['updatePassword'] = async (password) => {
+      const { error } = await sb.auth.updateUser({ password });
+      return error ? authError(error.message) : null;
+    };
+
+    return { setMe, addListing, removeListing, addOffer, setOfferStatus, toggleFav, signIn, signUp, signOut, resetPassword, updatePassword };
   }, [sb, uid, me, loadListings, loadPrivate]);
 
   const listings = useMemo(() => (uid ? all.filter((l) => l.ownerId === uid) : []), [all, uid]);

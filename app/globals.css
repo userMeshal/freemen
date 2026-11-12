@@ -455,3 +455,6 @@ textarea.input { resize: vertical; line-height: 1.7; }
 .auth-note { text-align: center; color: var(--muted); font-size: 14px; margin-top: 18px; }
 .form-error { padding: 12px 16px; border-radius: 14px; background: color-mix(in srgb, var(--bad) 10%, transparent); color: var(--bad); font-size: 15px; margin-bottom: 16px; }
 .form-ok { padding: 16px; border-radius: 16px; background: color-mix(in srgb, var(--ok) 12%, transparent); color: var(--ok); font-size: 16px; text-align: center; }
+.link-btn { display: block; margin: 16px auto 0; color: var(--muted); font-size: 15px; text-decoration: underline; text-underline-offset: 4px; transition: color 0.2s; }
+.link-btn:hover { color: var(--ink); }
+.forgot-lead { margin-bottom: 22px; font-size: 17px; }

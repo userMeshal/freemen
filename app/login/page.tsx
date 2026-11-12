@@ -11,8 +11,9 @@ import { useStore } from '@/lib/store';
 function Login() {
   const router = useRouter();
   const params = useSearchParams();
-  const { cloud, authed, ready, signIn, signUp, toast } = useStore();
-  const [mode, setMode] = useState<'in' | 'up'>('in');
+  const { cloud, authed, ready, signIn, signUp, resetPassword, toast } = useStore();
+  const [mode, setMode] = useState<'in' | 'up' | 'forgot'>('in');
+  const [sent, setSent] = useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -38,14 +39,18 @@ function Login() {
     );
   }
 
-  const valid = email.includes('@') && password.length >= 6 && (mode === 'in' || name.trim().length > 1);
+  const valid = email.includes('@') && (mode === 'forgot' || password.length >= 6) && (mode !== 'up' || name.trim().length > 1);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!valid || busy) return;
     setBusy(true);
     setError('');
-    if (mode === 'in') {
+    if (mode === 'forgot') {
+      const err = await resetPassword(email);
+      if (err) setError(err);
+      else setSent(true);
+    } else if (mode === 'in') {
       const err = await signIn(email, password);
       if (err) setError(err);
       else toast('هلا بك');
@@ -63,15 +68,23 @@ function Login() {
       <div className="auth">
         <header className="page-head">
           <span className="eyebrow">حسابك في بدلني</span>
-          <h1 className="h2">{mode === 'in' ? 'هلا من جديد' : 'حساب جديد'}</h1>
+          <h1 className="h2">{mode === 'in' ? 'هلا من جديد' : mode === 'up' ? 'حساب جديد' : 'نسيت كلمة المرور؟'}</h1>
         </header>
 
-        {confirm ? (
+        {sent ? (
+          <motion.div className="form-ok" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+            لو {email} مسجّل عندنا، بيوصله رابط لتغيير كلمة المرور خلال دقايق. شيّك البريد غير المرغوب بعد.
+            <button type="button" className="link-btn" onClick={() => { setSent(false); setMode('in'); }}>رجوع لتسجيل الدخول</button>
+          </motion.div>
+        ) : confirm ? (
           <motion.div className="form-ok" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
             أرسلنا لك رابط تفعيل على {email}. افتحه ثم ارجع وسجّل دخولك.
           </motion.div>
         ) : (
           <form onSubmit={submit}>
+            {mode === 'forgot' ? (
+              <p className="lead forgot-lead">اكتب إيميلك ونرسل لك رابط تغيّر منه كلمة المرور.</p>
+            ) : (
             <div className="tabs" role="tablist">
               {([['in', 'دخول'], ['up', 'حساب جديد']] as const).map(([id, label]) => (
                 <button type="button" key={id} role="tab" aria-selected={mode === id} className={`tab ${mode === id ? 'is-on' : ''}`} onClick={() => { setMode(id); setError(''); }}>
@@ -80,6 +93,7 @@ function Login() {
                 </button>
               ))}
             </div>
+            )}
 
             <AnimatePresence initial={false}>
               {mode === 'up' && (
@@ -94,16 +108,20 @@ function Login() {
               <span className="label">الإيميل</span>
               <input className="input" dir="ltr" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" required />
             </label>
+            {mode !== 'forgot' && (
             <label className="field">
               <span className="label">كلمة المرور</span>
               <input className="input" dir="ltr" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="6 أحرف أو أكثر" autoComplete={mode === 'in' ? 'current-password' : 'new-password'} minLength={6} required />
             </label>
+            )}
 
             {error && <motion.div className="form-error" role="alert" initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }}>{error}</motion.div>}
 
             <button className="btn btn-primary btn-lg btn-block" disabled={!valid || busy}>
-              {busy ? 'لحظة…' : mode === 'in' ? 'دخول' : 'أنشئ الحساب'} <ArrowLeft size={18} />
+              {busy ? 'لحظة…' : mode === 'in' ? 'دخول' : mode === 'up' ? 'أنشئ الحساب' : 'أرسل الرابط'} <ArrowLeft size={18} />
             </button>
+            {mode === 'in' && <button type="button" className="link-btn" onClick={() => { setMode('forgot'); setError(''); }}>نسيت كلمة المرور؟</button>}
+            {mode === 'forgot' && <button type="button" className="link-btn" onClick={() => { setMode('in'); setError(''); }}>رجوع لتسجيل الدخول</button>}
             <p className="auth-note">رقمك وإيميلك ما يظهرون لأحد. رقم الواتساب ينكشف فقط للي تتفق معه على بدل.</p>
           </form>
         )}

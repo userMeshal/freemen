@@ -97,6 +97,8 @@ export function LocalProvider({ children }: { children: React.ReactNode }) {
     signIn: async () => null,
     signUp: async () => ({}),
     signOut: async () => {},
+    resetPassword: async () => null,
+    updatePassword: async () => null,
   };
   return <StoreCtx.Provider value={value}>{children}</StoreCtx.Provider>;
 }

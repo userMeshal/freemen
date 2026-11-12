@@ -37,6 +37,10 @@ export type Ctx = {
   signIn: (email: string, password: string) => Promise<string | null>;
   signUp: (name: string, email: string, password: string) => Promise<{ error?: string; confirm?: boolean }>;
   signOut: () => Promise<void>;
+  /** يرسل رابط استرجاع كلمة المرور على الإيميل — يرجّع نص الخطأ أو null */
+  resetPassword: (email: string) => Promise<string | null>;
+  /** يغيّر كلمة مرور المستخدم الحالي (بعد فتح رابط الاسترجاع) */
+  updatePassword: (password: string) => Promise<string | null>;
 };
 
 export const StoreCtx = createContext<Ctx | null>(null);
