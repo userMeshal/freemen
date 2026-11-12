@@ -43,7 +43,9 @@ function ThemeToggle() {
 
 function Nav() {
   const pathname = usePathname();
-  const { offers, listings, me } = useStore();
+  const { offers, listings, me, cloud, authed } = useStore();
+  const guest = cloud && !authed;
+  const links = guest ? [...LINKS.slice(0, 2), { href: '/login', label: 'دخول' }] : LINKS;
   const [open, setOpen] = useState(false);
   const [hidden, setHidden] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -73,7 +75,7 @@ function Nav() {
         <div className="nav-inner">
           <Link href="/" aria-label="بدل — الرئيسية"><Logo /></Link>
           <nav className="nav-links" aria-label="التنقل الرئيسي">
-            {LINKS.map((l) => (
+            {links.map((l) => (
               <Link key={l.href} href={l.href} className={pathname === l.href ? 'is-active' : ''}>
                 {l.label}
                 {l.href === '/offers' && pending > 0 && <span className="badge">{pending}</span>}
@@ -99,7 +101,7 @@ function Nav() {
             exit={{ opacity: 0, clipPath: 'circle(0% at 10% 0%)' }}
             transition={{ duration: 0.55, ease: EASE }}
           >
-            {[...LINKS, { href: '/new', label: 'اعرض غرضك' }].map((l, i) => (
+            {[...links, { href: '/new', label: 'اعرض غرضك' }].map((l, i) => (
               <motion.div key={l.href} initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 + i * 0.07, duration: 0.5, ease: EASE }}>
                 <Link href={l.href} onClick={() => setOpen(false)}>{l.label}</Link>
               </motion.div>
@@ -112,6 +114,7 @@ function Nav() {
 }
 
 function Footer() {
+  const { cloud } = useStore();
   return (
     <footer className="footer">
       <div className="container footer-grid">
@@ -134,7 +137,7 @@ function Footer() {
       </div>
       <div className="container footer-bottom">
         <span>© {new Date().getFullYear()} بدل. صُنع في السعودية.</span>
-        <span>نسخة تجريبية — البيانات محفوظة على جهازك</span>
+        <span>{cloud ? 'بدّل بأمان: قابِل في مكان عام' : 'نسخة تجريبية — البيانات محفوظة على جهازك'}</span>
       </div>
       <div className="footer-giant" aria-hidden>بدل</div>
     </footer>

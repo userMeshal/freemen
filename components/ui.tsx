@@ -60,7 +60,7 @@ export function ListingArt({ listing, iconSize = 56 }: { listing: Pick<Listing, 
 export function ListingCard({ listing, index = 0 }: { listing: Listing; index?: number }) {
   const { favs, toggleFav, offersFor } = useStore();
   const fav = favs.includes(listing.id);
-  const count = (listing.seedOffers ?? 0) + offersFor(listing.id).length;
+  const count = listing.offersCount ?? (listing.seedOffers ?? 0) + offersFor(listing.id).length;
   return (
     <motion.article
       layout

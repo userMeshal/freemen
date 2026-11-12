@@ -47,6 +47,8 @@ export type Listing = {
   whatsapp?: string;
   createdAt: number;
   seedOffers?: number;
+  /** عدد عروض البدل من قاعدة البيانات */
+  offersCount?: number;
 };
 
 export type Offer = {

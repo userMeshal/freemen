@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowLeft, ArrowRight, Check, ImagePlus, Plus, X } from 'lucide-react';
 import { CategoryIcon, EASE } from '@/components/ui';
@@ -12,7 +12,8 @@ const STEP_TITLES = ['وش عندك؟', 'عطنا التفاصيل', 'وش تب�
 const SUGGEST = ['آيفون', 'بلايستيشن 5', 'ماك بوك', 'ساعة ذكية', 'دراجة', 'آيباد', 'كاميرا'];
 
 export default function NewListing() {
-  const { me, setMe, addListing, toast } = useStore();
+  const { me, setMe, addListing, toast, authed, ready } = useStore();
+  const [busy, setBusy] = useState(false);
   const [step, setStep] = useState(0);
   const [dir, setDir] = useState(1);
   const [done, setDone] = useState<Listing | null>(null);
@@ -47,15 +48,41 @@ export default function NewListing() {
     const next = await Promise.all(Array.from(files).slice(0, 3 - images.length).map((f) => fileToDataUrl(f)));
     setImages((x) => [...x, ...next]);
   };
-  const publish = () => {
-    setMe({ name: name.trim(), city, whatsapp: whatsapp.trim() });
-    const l = addListing({
+  const publish = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await setMe({ name: name.trim(), city, whatsapp: whatsapp.trim() });
+      const l = await addListing({
       title: title.trim(), category, condition, city, description: description.trim(), wants, openToOffers: open,
       valueTier: tier, images, ownerName: name.trim(), whatsapp: whatsapp.trim() || undefined,
     });
-    setDone(l);
-    toast('انتشر عرضك');
+      setDone(l);
+      toast('انتشر عرضك');
+    } catch {
+      toast('ما انتشر العرض، تأكد من الاتصال وحاول مرة ثانية');
+    } finally {
+      setBusy(false);
+    }
   };
+
+  // الاسم والمدينة والرقم توصل بعد تحميل الحساب
+  useEffect(() => {
+    if (!me.id) return;
+    setName((v) => v || me.name);
+    setWhatsapp((v) => v || me.whatsapp);
+    if (me.city) setCity(me.city);
+  }, [me.id, me.name, me.whatsapp, me.city]);
+
+  if (ready && !authed) {
+    return (
+      <div className="container page page-narrow empty">
+        <h1 className="h2">سجّل دخولك أول</h1>
+        <p className="lead">عشان تعرض غرضك وتوصلك عروض البدل لازم يكون عندك حساب — ياخذ دقيقة.</p>
+        <Link href="/login?next=/new" className="btn btn-primary btn-lg">دخول / حساب جديد</Link>
+      </div>
+    );
+  }
 
   if (done) {
     return (
@@ -211,7 +238,7 @@ export default function NewListing() {
         {step < 2 ? (
           <button className="btn btn-primary btn-lg" disabled={!ok} onClick={() => go(1)}>التالي <ArrowLeft size={18} /></button>
         ) : (
-          <motion.button className="btn btn-primary btn-lg" disabled={!ok} onClick={publish} whileTap={{ scale: 0.97 }}>انشر العرض <Check size={18} /></motion.button>
+          <motion.button className="btn btn-primary btn-lg" disabled={!ok || busy} onClick={publish} whileTap={{ scale: 0.97 }}>{busy ? 'جاري النشر…' : 'انشر العرض'} <Check size={18} /></motion.button>
         )}
       </div>
     </div>
