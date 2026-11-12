@@ -8,7 +8,8 @@ import './globals.css';
 import Chrome from '@/components/Chrome';
 
 export const metadata: Metadata = {
-  title: { default: 'بدل — سوق المقايضة السعودي', template: '%s — بدل' },
+  title: { default: 'بدلني — سوق المقايضة السعودي', template: '%s — بدلني' },
+  applicationName: 'بدلني',
   description: 'اعرض غرضك، استقبل عروض البدل، وبدّل اللي عندك باللي تبيه. مقايضة غرض بغرض في كل مدن السعودية — بدون ولا ريال.',
 };
 
