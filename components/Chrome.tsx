@@ -73,7 +73,7 @@ function Nav() {
         transition={{ duration: 0.5, ease: EASE }}
       >
         <div className="nav-inner">
-          <Link href="/" aria-label="تليته — الرئيسية"><Logo /></Link>
+          <Link href="/" aria-label="حطّها — الرئيسية"><Logo /></Link>
           <nav className="nav-links" aria-label="التنقل الرئيسي">
             {links.map((l) => (
               <Link key={l.href} href={l.href} className={pathname === l.href ? 'is-active' : ''}>
@@ -119,7 +119,7 @@ function Footer() {
     <footer className="footer">
       <div className="container footer-grid">
         <div>
-          <Logo size={32} />
+          <Logo height={34} />
           <p className="footer-tag">بدل، بيع، ومزاد.<br />سوق واحد لكل أغراضك.</p>
         </div>
         <div className="footer-col">
@@ -145,10 +145,10 @@ function Footer() {
         </div>
       </div>
       <div className="container footer-bottom">
-        <span>© {new Date().getFullYear()} تليته. صُنع في السعودية.</span>
+        <span>© {new Date().getFullYear()} حطّها. صُنع في السعودية.</span>
         <span>{cloud ? 'بدّل بأمان: قابِل في مكان عام' : 'نسخة تجريبية — البيانات محفوظة على جهازك'}</span>
       </div>
-      <div className="footer-giant" aria-hidden>تليته</div>
+      <div className="footer-giant" aria-hidden><Logo height={0} /></div>
     </footer>
   );
 }

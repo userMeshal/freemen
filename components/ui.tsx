@@ -8,6 +8,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { auctionStatus, catById, formatSAR, timeAgo, type Listing } from '@/lib/data';
+import { LOGO } from '@/lib/logo';
 import { useStore } from '@/lib/store';
 
 export const EASE = [0.22, 1, 0.36, 1] as const;
@@ -22,19 +23,12 @@ export function CategoryIcon({ id, size = 20, strokeWidth = 1.6 }: { id: string;
   return <Icon size={size} strokeWidth={strokeWidth} aria-hidden />;
 }
 
-/** شعار تليته: دائرة مقسومة نصفين يتبادلون الاتجاه — الملفات الأصلية في public/brand */
-export function Logo({ size = 30 }: { size?: number }) {
+/** شعار «حطّها» — يأخذ لون النص، فيتبع الوضع الفاتح والداكن. الملفات الأصلية في public/brand */
+export function Logo({ height = 26 }: { height?: number }) {
   return (
-    <span className="logo">
-      <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden>
-        <rect width="32" height="32" rx="7.5" fill="currentColor" />
-        <g fill="var(--bg)" stroke="var(--bg)" strokeWidth="1.265" strokeLinejoin="round">
-          <path className="logo-top" d="M11.34 14.505A7.99 7.99 0 0 1 27.33 14.505Z" />
-          <path className="logo-bot" d="M4.67 17.495A7.99 7.99 0 0 0 20.66 17.495Z" />
-        </g>
-      </svg>
-      <span className="logo-word">تليته</span>
-    </span>
+    <svg className="logo" height={height} viewBox={`0 0 ${LOGO.width} ${LOGO.height}`} role="img" aria-label="حطّها">
+      <path d={LOGO.path} fill="currentColor" fillRule="evenodd" />
+    </svg>
   );
 }
 

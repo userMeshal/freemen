@@ -8,8 +8,8 @@ import './globals.css';
 import Chrome from '@/components/Chrome';
 
 export const metadata: Metadata = {
-  title: { default: 'تليته — بدّل، بِع، وزاوِد', template: '%s — تليته' },
-  applicationName: 'تليته',
+  title: { default: 'حطّها — بدّل، بِع، وزاوِد', template: '%s — حطّها' },
+  applicationName: 'حطّها',
   description: 'سوق واحد لكل أغراضك في السعودية: بدّلها بغرض ثاني، بيعها بسعرك، أو اعرضها بمزاد.',
 };
 
