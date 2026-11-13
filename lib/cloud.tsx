@@ -84,6 +84,7 @@ export function CloudProvider({ children }: { children: React.ReactNode }) {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [fees, setFees] = useState<Fee[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isRootAdmin, setIsRootAdmin] = useState(false);
   const [favs, setFavs] = useState<string[]>([]);
   const [chatHeads, setChatHeads] = useState<Record<string, ChatHead>>({});
   const [ready, setReady] = useState(false);
@@ -161,6 +162,7 @@ export function CloudProvider({ children }: { children: React.ReactNode }) {
       setFees([]);
       setChatHeads({});
       setIsAdmin(false);
+      setIsRootAdmin(false);
       return;
     }
     let alive = true;
@@ -174,6 +176,7 @@ export function CloudProvider({ children }: { children: React.ReactNode }) {
     loadPrivate();
     const poll = setInterval(() => document.visibilityState === 'visible' && loadPrivate(), 30_000);
     sb.rpc('is_admin').then(({ data }) => alive && setIsAdmin(data === true));
+    sb.rpc('is_root_admin').then(({ data }) => alive && setIsRootAdmin(data === true));
     const channel = sb
       .channel(`offers-${uid}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'offers' }, (payload) => {
@@ -383,6 +386,36 @@ export function CloudProvider({ children }: { children: React.ReactNode }) {
       if (error) throw error;
     };
 
+    const adminError = (message: string) => {
+      if (message.includes('NO_USER')) return 'ما فيه حساب بهذا الإيميل — لازم صاحبه يسجّل في الموقع أول';
+      if (message.includes('ROOT')) return 'المشرف الأساسي ما ينشال من الموقع';
+      if (message.includes('FORBIDDEN')) return 'هذي الصلاحية للمشرف الأساسي فقط';
+      return 'ما تم الطلب، حاول مرة ثانية';
+    };
+
+    const loadAdmins: Ctx['loadAdmins'] = async () => {
+      const { data, error } = await sb.rpc('admin_list');
+      if (error) throw error;
+      return ((data as any[]) ?? []).map((r) => ({ userId: r.user_id, name: r.name, email: r.email, addedAt: +new Date(r.added_at), isRoot: r.is_root }));
+    };
+
+    const addAdmin: Ctx['addAdmin'] = async (mail) => {
+      const { error } = await sb.rpc('admin_add', { p_email: mail.trim() });
+      return error ? adminError(error.message) : null;
+    };
+
+    const removeAdmin: Ctx['removeAdmin'] = async (userId) => {
+      const { error } = await sb.rpc('admin_remove', { p_user: userId });
+      return error ? adminError(error.message) : null;
+    };
+
+    const adminDeleteListing: Ctx['adminDeleteListing'] = async (id, reason) => {
+      const { error } = await sb.rpc('admin_delete_listing', { p_listing: id, p_reason: reason });
+      if (error) throw error;
+      setAll((a) => a.filter((l) => l.id !== id));
+      setOffers((o) => o.filter((x) => x.listingId !== id));
+    };
+
     const toggleFav: Ctx['toggleFav'] = (id) =>
       setFavs((f) => {
         const next = f.includes(id) ? f.filter((x) => x !== id) : [...f, id];
@@ -417,7 +450,7 @@ export function CloudProvider({ children }: { children: React.ReactNode }) {
       return error ? authError(error.message) : null;
     };
 
-    return { setMe, addListing, removeListing, addOffer, setOfferStatus, withdrawOffer, refreshListing, loadBids, placeBid, loadMessages, sendMessage, peerName, requestEntry, requestAuctionFee, loadPendingFees, reviewFee, loadPendingEntries, reviewEntry, toggleFav, signIn, signUp, signOut, resetPassword, updatePassword };
+    return { setMe, addListing, removeListing, addOffer, setOfferStatus, withdrawOffer, refreshListing, loadBids, placeBid, loadMessages, sendMessage, peerName, requestEntry, requestAuctionFee, loadPendingFees, reviewFee, loadPendingEntries, reviewEntry, loadAdmins, addAdmin, removeAdmin, adminDeleteListing, toggleFav, signIn, signUp, signOut, resetPassword, updatePassword };
   }, [sb, uid, me, loadListings, loadPrivate]);
 
   const listings = useMemo(() => (uid ? all.filter((l) => l.ownerId === uid) : []), [all, uid]);
@@ -427,7 +460,7 @@ export function CloudProvider({ children }: { children: React.ReactNode }) {
   const { unread, markRead } = useChatSeen(chatHeads, uid ?? '');
 
   const value: Ctx = {
-    ...api, cloud: true, chatHeads, unread, markRead, authed: !!uid, email, ready, me, listings, all, offers, favs, toasts, toast, offersFor, contactFor, entries, fees, isAdmin,
+    ...api, cloud: true, chatHeads, unread, markRead, authed: !!uid, email, ready, me, listings, all, offers, favs, toasts, toast, offersFor, contactFor, entries, fees, isAdmin, isRootAdmin,
   };
   return <StoreCtx.Provider value={value}>{children}</StoreCtx.Provider>;
 }

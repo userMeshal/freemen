@@ -608,3 +608,84 @@ create policy "messages send parties" on public.messages for insert to authentic
 revoke insert, update, delete on public.messages from anon, authenticated;
 revoke insert (offer_id, auction_id) on public.messages from authenticated;
 grant insert (listing_id, peer_id, sender_id, body) on public.messages to authenticated;
+
+-- ════════════════════════════════════════════════════════════════
+--  المرحلة 6: إدارة المشرفين وحذف الإعلانات من صفحة الإدارة
+--  المشرف الأساسي (المضاف من SQL مباشرة) يضيف ويشيل المشرفين.
+--  كل مشرف يحذف الإعلانات المخالفة، وكل حذف يُسجَّل.
+-- ════════════════════════════════════════════════════════════════
+
+alter table public.admins add column if not exists added_by uuid references public.profiles (id) on delete set null;
+alter table public.admins add column if not exists added_at timestamptz not null default now();
+
+-- المشرف الأساسي = من أُضيف من SQL مباشرة (بدون added_by). لا يُشال من الموقع، وهو فقط من يدير المشرفين.
+create or replace function public.is_root_admin()
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.admins where user_id = auth.uid() and added_by is null);
+$$;
+
+create or replace function public.admin_list()
+returns table (user_id uuid, name text, email text, added_at timestamptz, is_root boolean)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public.is_root_admin() then raise exception 'FORBIDDEN'; end if;
+  return query
+    select a.user_id, p.name, u.email::text, a.added_at, a.added_by is null
+    from public.admins a
+    join public.profiles p on p.id = a.user_id
+    join auth.users u on u.id = a.user_id
+    order by a.added_by is not null, a.added_at;
+end $$;
+
+-- إضافة مشرف ببريد حسابه في الموقع
+create or replace function public.admin_add(p_email text)
+returns void language plpgsql security definer set search_path = public as $$
+declare
+  target uuid;
+begin
+  if not public.is_root_admin() then raise exception 'FORBIDDEN'; end if;
+  select u.id into target from auth.users u where lower(u.email) = lower(btrim(p_email)) limit 1;
+  if target is null then raise exception 'NO_USER'; end if;
+  insert into public.admins (user_id, added_by) values (target, auth.uid()) on conflict (user_id) do nothing;
+end $$;
+
+create or replace function public.admin_remove(p_user uuid)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_root_admin() then raise exception 'FORBIDDEN'; end if;
+  if exists (select 1 from public.admins where user_id = p_user and added_by is null) then raise exception 'ROOT'; end if;
+  delete from public.admins where user_id = p_user;
+end $$;
+
+-- سجل الحذف الإداري: من حذف، أي إعلان، لمن، ولماذا
+create table if not exists public.moderation_log (
+  id uuid primary key default gen_random_uuid(),
+  admin_id uuid references public.profiles (id) on delete set null,
+  listing_id uuid not null,
+  listing_title text not null,
+  listing_kind text not null,
+  owner_id uuid,
+  reason text not null default '' check (char_length(reason) <= 300),
+  created_at timestamptz not null default now()
+);
+alter table public.moderation_log enable row level security;
+drop policy if exists "moderation log read admins" on public.moderation_log;
+create policy "moderation log read admins" on public.moderation_log for select to authenticated using (public.is_admin());
+revoke insert, update, delete on public.moderation_log from anon, authenticated;
+
+-- حذف إعلان من الإدارة (مع كل ما يتبعه من عروض ومزايدات ورسائل)
+create or replace function public.admin_delete_listing(p_listing uuid, p_reason text default '')
+returns void language plpgsql security definer set search_path = public as $$
+declare
+  l public.listings;
+begin
+  if not public.is_admin() then raise exception 'FORBIDDEN'; end if;
+  select * into l from public.listings where id = p_listing;
+  if not found then raise exception 'NOT_FOUND'; end if;
+  insert into public.moderation_log (admin_id, listing_id, listing_title, listing_kind, owner_id, reason)
+  values (auth.uid(), l.id, l.title, l.kind, l.owner_id, left(coalesce(btrim(p_reason), ''), 300));
+  delete from public.listings where id = p_listing;
+end $$;
+
+revoke execute on function public.admin_list(), public.admin_add(text), public.admin_remove(uuid), public.admin_delete_listing(uuid, text) from public, anon;
+grant execute on function public.admin_list(), public.admin_add(text), public.admin_remove(uuid), public.admin_delete_listing(uuid, text) to authenticated;

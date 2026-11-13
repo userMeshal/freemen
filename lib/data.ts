@@ -87,6 +87,9 @@ export function parseThread(thread: string) {
   return { listingId, peerId };
 }
 
+/** مشرف في صفحة الإدارة. الأساسي (isRoot) مضاف من قاعدة البيانات مباشرة ولا يُشال من الموقع */
+export type Admin = { userId: string; name: string; email: string; addedAt: number; isRoot: boolean };
+
 export type Bid = { id: string; listingId: string; bidderId: string; bidderName: string; amount: number; createdAt: number };
 
 /** طلب دخول مزاد: المستخدم يحوّل الرسم بنكياً والمشرف يتحقق ويفعّل */
