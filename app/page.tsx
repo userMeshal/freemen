@@ -12,7 +12,7 @@ import { useStore } from '@/lib/store';
 const HEADLINE = ['بدّل', 'اللي', 'عندك', 'باللي', 'تبيه.'];
 
 const MANIFESTO =
-  'في كل بيت أغراض قيمتها محفوظة وفايدتها واقفة. بدلني يحرّكها: غرضك يروح للي يحتاجه، وحاجتك تجيك من اللي ما عاد يحتاجها. غرض بغرض، ولو اختلفت القيمة يكمّلها مبلغ بسيط.';
+  'في كل بيت أغراض قيمتها محفوظة وفايدتها واقفة. تليته يحرّكها: غرضك يروح للي يحتاجه، وحاجتك تجيك من اللي ما عاد يحتاجها. غرض بغرض، ولو اختلفت القيمة يكمّلها مبلغ بسيط.';
 
 function Word({ children, progress, range }: { children: string; progress: MotionValue<number>; range: [number, number] }) {
   const opacity = useTransform(progress, range, [0.12, 1]);
@@ -70,7 +70,7 @@ function Bento() {
   return (
     <section className="section container">
       <Reveal>
-        <span className="eyebrow">ليش بدلني</span>
+        <span className="eyebrow">ليش تليته</span>
         <h2 className="h2">سوق أساسه البدل،<br />مو البيع.</h2>
       </Reveal>
       <div className="bento">
@@ -188,7 +188,7 @@ export default function Home() {
         {ready && all.length === 0 && (
           <div className="empty">
             <h3>السوق توّه فاتح</h3>
-            <p>كن أول من يعرض غرض على بدلني.</p>
+            <p>كن أول من يعرض غرض على تليته.</p>
             <Link href="/new" className="btn btn-primary">اعرض غرضك</Link>
           </div>
         )}

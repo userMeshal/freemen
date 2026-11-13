@@ -10,7 +10,7 @@ import { CategoryIcon, EASE } from './ui';
 const STATUS = { pending: 'بانتظار الرد', accepted: 'تم القبول', rejected: 'مرفوض' } as const;
 
 export default function OfferRow({ offer, listing, role }: { offer: Offer; listing?: Listing; role: 'owner' | 'sender' }) {
-  const { setOfferStatus, toast, contactFor } = useStore();
+  const { setOfferStatus, withdrawOffer, toast, contactFor } = useStore();
   const f = listing ? fairness(listingValue(listing), offerValue(offer)) : null;
   const other = role === 'sender' ? listing?.ownerId : offer.fromId;
   const wa = (other ? contactFor(other) : undefined)?.replace(/\D/g, '').replace(/^0/, '966');
@@ -54,6 +54,15 @@ export default function OfferRow({ offer, listing, role }: { offer: Offer; listi
             </motion.button>
             <motion.button whileTap={{ scale: 0.95 }} className="btn btn-ghost btn-sm" onClick={() => decide('rejected')}>
               <X size={15} /> ارفض
+            </motion.button>
+          </div>
+        )}
+
+        {role === 'sender' && offer.status === 'pending' && (
+          <div className="offer-actions">
+            <motion.button whileTap={{ scale: 0.95 }} className="btn btn-ghost btn-sm"
+              onClick={() => withdrawOffer(offer.id).then(() => toast('انسحب عرضك')).catch(() => toast('ما انسحب العرض، حاول مرة ثانية'))}>
+              <X size={15} /> اسحب العرض
             </motion.button>
           </div>
         )}

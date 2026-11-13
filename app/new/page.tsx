@@ -91,7 +91,7 @@ export default function NewListing() {
         <motion.div className="success-ring" initial={{ scale: 0, rotate: -90 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 200, damping: 14 }}>
           <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.25, type: 'spring', stiffness: 300, damping: 12 }}><Check size={44} strokeWidth={2.5} /></motion.span>
         </motion.div>
-        <motion.h1 className="h2" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3, duration: 0.7, ease: EASE }}>عرضك صار على بدلني</motion.h1>
+        <motion.h1 className="h2" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3, duration: 0.7, ease: EASE }}>عرضك صار على تليته</motion.h1>
         <motion.p className="lead" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.45 }}>«{done.title}» الحين معروض. أول ما يوصلك عرض بدل بننبّهك.</motion.p>
         <motion.div className="hero-cta" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}>
           <Link href="/offers" className="btn btn-primary btn-lg">تابع العروض</Link>

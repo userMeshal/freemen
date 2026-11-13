@@ -146,7 +146,8 @@ create policy "offers insert" on public.offers for insert to authenticated
 -- القبول والرفض لصاحب العرض فقط
 create policy "offers owner decides" on public.offers for update to authenticated
   using (public.owns_listing(listing_id)) with check (public.owns_listing(listing_id));
-create policy "offers withdraw" on public.offers for delete to authenticated using (from_id = auth.uid());
+-- المرسل يسحب عرضه ما دام بانتظار الرد فقط
+create policy "offers withdraw" on public.offers for delete to authenticated using (from_id = auth.uid() and status = 'pending');
 
 -- ───────── الصلاحيات على مستوى الأعمدة ─────────
 -- التعديل على عرض البدل = تغيير حالته فقط؛ والعدّاد ما يعدّله المستخدم

@@ -73,7 +73,7 @@ function Nav() {
         transition={{ duration: 0.5, ease: EASE }}
       >
         <div className="nav-inner">
-          <Link href="/" aria-label="بدلني — الرئيسية"><Logo /></Link>
+          <Link href="/" aria-label="تليته — الرئيسية"><Logo /></Link>
           <nav className="nav-links" aria-label="التنقل الرئيسي">
             {links.map((l) => (
               <Link key={l.href} href={l.href} className={pathname === l.href ? 'is-active' : ''}>
@@ -129,6 +129,14 @@ function Footer() {
           <Link href="/offers">عروضي</Link>
         </div>
         <div className="footer-col">
+          <h4>السياسات</h4>
+          <Link href="/policies/terms">الشروط والأحكام</Link>
+          <Link href="/policies/privacy">الخصوصية</Link>
+          <Link href="/policies/cancellation">الإلغاء والاسترجاع</Link>
+          <Link href="/policies/safety">الحماية والأمان</Link>
+          <Link href="/policies/prohibited">الأغراض الممنوعة</Link>
+        </div>
+        <div className="footer-col">
           <h4>بدل بأمان</h4>
           <span>قابِل في مكان عام</span>
           <span>افحص الغرض قبل البدل</span>
@@ -136,10 +144,10 @@ function Footer() {
         </div>
       </div>
       <div className="container footer-bottom">
-        <span>© {new Date().getFullYear()} بدلني. صُنع في السعودية.</span>
+        <span>© {new Date().getFullYear()} تليته. صُنع في السعودية.</span>
         <span>{cloud ? 'بدّل بأمان: قابِل في مكان عام' : 'نسخة تجريبية — البيانات محفوظة على جهازك'}</span>
       </div>
-      <div className="footer-giant" aria-hidden>بدلني</div>
+      <div className="footer-giant" aria-hidden>تليته</div>
     </footer>
   );
 }

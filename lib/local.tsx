@@ -89,10 +89,12 @@ export function LocalProvider({ children }: { children: React.ReactNode }) {
     const setOfferStatus: Ctx['setOfferStatus'] = async (id, status) =>
       setState((s) => ({ ...s, offers: s.offers.map((o) => (o.id === id ? { ...o, status } : o)) }));
 
+    const withdrawOffer: Ctx['withdrawOffer'] = async (id) => setState((s) => ({ ...s, offers: s.offers.filter((o) => o.id !== id) }));
+
     const toggleFav: Ctx['toggleFav'] = (id) =>
       setState((s) => ({ ...s, favs: s.favs.includes(id) ? s.favs.filter((f) => f !== id) : [...s.favs, id] }));
 
-    return { setMe, addListing, removeListing, addOffer, setOfferStatus, toggleFav };
+    return { setMe, addListing, removeListing, addOffer, setOfferStatus, withdrawOffer, toggleFav };
   }, [state.me.id, later, toast]);
 
   const all = useMemo(() => [...state.listings, ...SEED], [state.listings]);

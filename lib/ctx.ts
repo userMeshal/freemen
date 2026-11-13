@@ -30,6 +30,8 @@ export type Ctx = {
   removeListing: (id: string) => Promise<void>;
   addOffer: (o: NewOffer) => Promise<void>;
   setOfferStatus: (id: string, status: Offer['status']) => Promise<void>;
+  /** المرسل يسحب عرضه قبل الرد عليه */
+  withdrawOffer: (id: string) => Promise<void>;
   toggleFav: (id: string) => void;
   offersFor: (listingId: string) => Offer[];
   /** رقم واتساب الطرف الثاني — يظهر فقط بعد قبول عرض بينكم */

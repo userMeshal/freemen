@@ -22,7 +22,7 @@ export function CategoryIcon({ id, size = 20, strokeWidth = 1.6 }: { id: string;
   return <Icon size={size} strokeWidth={strokeWidth} aria-hidden />;
 }
 
-/** شعار بدلني: دائرة مقسومة نصفين يتبادلون الاتجاه — الملفات الأصلية في public/brand */
+/** شعار تليته: دائرة مقسومة نصفين يتبادلون الاتجاه — الملفات الأصلية في public/brand */
 export function Logo({ size = 30 }: { size?: number }) {
   return (
     <span className="logo">
@@ -33,7 +33,7 @@ export function Logo({ size = 30 }: { size?: number }) {
           <path className="logo-bot" d="M4.67 17.495A7.99 7.99 0 0 0 20.66 17.495Z" />
         </g>
       </svg>
-      <span className="logo-word">بدلني</span>
+      <span className="logo-word">تليته</span>
     </span>
   );
 }

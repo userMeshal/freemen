@@ -67,7 +67,7 @@ function Login() {
     <div className="container page">
       <div className="auth">
         <header className="page-head">
-          <span className="eyebrow">حسابك في بدلني</span>
+          <span className="eyebrow">حسابك في تليته</span>
           <h1 className="h2">{mode === 'in' ? 'هلا من جديد' : mode === 'up' ? 'حساب جديد' : 'نسيت كلمة المرور؟'}</h1>
         </header>
 
@@ -122,6 +122,11 @@ function Login() {
             </button>
             {mode === 'in' && <button type="button" className="link-btn" onClick={() => { setMode('forgot'); setError(''); }}>نسيت كلمة المرور؟</button>}
             {mode === 'forgot' && <button type="button" className="link-btn" onClick={() => { setMode('in'); setError(''); }}>رجوع لتسجيل الدخول</button>}
+            {mode === 'up' && (
+              <p className="auth-note">
+                بإنشاء الحساب أنت توافق على <Link href="/policies/terms">الشروط والأحكام</Link> و<Link href="/policies/privacy">سياسة الخصوصية</Link>.
+              </p>
+            )}
             <p className="auth-note">رقمك وإيميلك ما يظهرون لأحد. رقم الواتساب ينكشف فقط للي تتفق معه على بدل.</p>
           </form>
         )}

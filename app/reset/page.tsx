@@ -58,7 +58,7 @@ export default function ResetPage() {
     <div className="container page">
       <form className="auth" onSubmit={submit}>
         <header className="page-head">
-          <span className="eyebrow">حسابك في بدلني</span>
+          <span className="eyebrow">حسابك في تليته</span>
           <h1 className="h2">كلمة مرور جديدة</h1>
         </header>
         <label className="field">

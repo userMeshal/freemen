@@ -199,6 +199,13 @@ export function CloudProvider({ children }: { children: React.ReactNode }) {
       if (error) throw error;
     };
 
+    const withdrawOffer: Ctx['withdrawOffer'] = async (id) => {
+      const { error } = await sb.from('offers').delete().eq('id', id).eq('status', 'pending');
+      if (error) throw error;
+      setOffers((prev) => prev.filter((o) => o.id !== id));
+      loadListings();
+    };
+
     const toggleFav: Ctx['toggleFav'] = (id) =>
       setFavs((f) => {
         const next = f.includes(id) ? f.filter((x) => x !== id) : [...f, id];
@@ -233,7 +240,7 @@ export function CloudProvider({ children }: { children: React.ReactNode }) {
       return error ? authError(error.message) : null;
     };
 
-    return { setMe, addListing, removeListing, addOffer, setOfferStatus, toggleFav, signIn, signUp, signOut, resetPassword, updatePassword };
+    return { setMe, addListing, removeListing, addOffer, setOfferStatus, withdrawOffer, toggleFav, signIn, signUp, signOut, resetPassword, updatePassword };
   }, [sb, uid, me, loadListings, loadPrivate]);
 
   const listings = useMemo(() => (uid ? all.filter((l) => l.ownerId === uid) : []), [all, uid]);
