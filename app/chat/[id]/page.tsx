@@ -16,14 +16,14 @@ const day = (ts: number) => {
   return d.toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', { day: 'numeric', month: 'long' });
 };
 
-/** محادثة بين طرفي اتفاق: عرض مقبول (o-…) أو مزاد منتهٍ بين صاحبه والفائز (a-…) */
+/** محادثة بين صاحب إعلان وأي مستخدم مهتم به — متاحة من أول سؤال، دون انتظار قبول عرض */
 export default function ChatPage({ params }: { params: { id: string } }) {
   const thread = decodeURIComponent(params.id);
-  const { ready, authed, me, all, offers, chatHeads, loadMessages, sendMessage, markRead, loadBids, contactFor, toast } = useStore();
+  const { ready, authed, me, all, offers, chatHeads, loadMessages, sendMessage, markRead, peerName, contactFor, toast } = useStore();
   const [messages, setMessages] = useState<Message[] | null>(null);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
-  const [winner, setWinner] = useState('');
+  const [fetched, setFetched] = useState<string>();
   const [waited, setWaited] = useState(false);
   useEffect(() => {
     const timer = setTimeout(() => setWaited(true), 3500);
@@ -31,24 +31,26 @@ export default function ChatPage({ params }: { params: { id: string } }) {
   }, []);
   const boxRef = useRef<HTMLDivElement>(null);
 
-  // أطراف المحادثة من بيانات العرض أو المزاد
+  // طرفا المحادثة: صاحب الإعلان والطرف المهتم (peer)
   const t = parseThread(thread);
-  const offer = t.kind === 'offer' ? offers.find((o) => o.id === t.id) : undefined;
-  const listing = all.find((l) => l.id === (offer ? offer.listingId : t.id));
+  const listing = all.find((l) => l.id === t.listingId);
   const iOwn = !!listing && listing.ownerId === me.id;
-  const allowed = t.kind === 'offer'
-    ? !!offer && offer.status === 'accepted'
-    : !!listing && listing.kind === 'auction' && auctionEnded(listing) && !!listing.topBidder && (iOwn || listing.topBidder === me.id);
-  const otherId = t.kind === 'offer' ? (iOwn ? offer?.fromId : listing?.ownerId) : iOwn ? listing?.topBidder : listing?.ownerId;
-  const otherName = t.kind === 'offer' ? (iOwn ? offer?.fromName : listing?.ownerName) : iOwn ? winner || 'الفائز بالمزاد' : listing?.ownerName;
+  const allowed = !!listing && !!me.id && !!t.peerId && (iOwn ? t.peerId !== me.id : t.peerId === me.id);
+  const offer = offers.find((o) => o.listingId === t.listingId && o.fromId === t.peerId);
+  const otherId = iOwn ? t.peerId : listing?.ownerId;
+  const otherName = iOwn ? offer?.fromName ?? chatHeads[thread]?.peerName ?? fetched ?? '…' : listing?.ownerName;
+  // رقم الواتساب تحجبه القاعدة حتى يُقبل عرض بين الطرفين، فالزر يظهر بعدها فقط
   const wa = otherId && !offer?.demo ? contactFor(otherId)?.replace(/\D/g, '').replace(/^0/, '966') : undefined;
-  const subject = !listing ? '' : t.kind === 'auction' ? `فاز بـ ${formatSAR(listing.currentBid ?? 0)}`
-    : offer?.kind === 'buy' ? `طلب شراء بـ ${formatSAR(offer.cash ?? 0)}` : `عرض بدل: ${offer?.itemTitle ?? ''}`;
+  const subject = !listing ? ''
+    : offer?.status === 'accepted' ? (offer.kind === 'buy' ? `طلب شراء مقبول بـ ${formatSAR(offer.cash ?? 0)}` : 'عرض بدل مقبول')
+    : listing.kind === 'sale' ? `للبيع بـ ${formatSAR(listing.price ?? 0)}`
+    : listing.kind === 'auction' ? (auctionEnded(listing) ? `مزاد انتهى${listing.currentBid ? ` بـ ${formatSAR(listing.currentBid)}` : ''}` : 'مزاد')
+    : 'للبدل';
 
   useEffect(() => {
-    if (t.kind === 'auction' && iOwn) loadBids(t.id).then((b) => setWinner(b[0]?.bidderName ?? '')).catch(() => {});
+    if (iOwn && t.peerId && !offer) peerName(t.peerId).then(setFetched).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [t.kind, t.id, iOwn]);
+  }, [iOwn, t.peerId, !!offer]);
 
   const reload = useCallback(() => {
     loadMessages(thread).then(setMessages).catch(() => setMessages((m) => m ?? []));
@@ -85,7 +87,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
       // نعرض الرسالة فوراً؛ التحميل التالي (يتبع تنبيه الرسالة الجديدة) يستبدلها بالنسخة المحفوظة
       setMessages((m) => [...(m ?? []), { id: `tmp-${Date.now()}`, thread, senderId: me.id, body, createdAt: Date.now() }]);
     } catch {
-      toast('ما انرسلت الرسالة، حاول مرة ثانية');
+      toast(iOwn ? 'ما انرسلت الرسالة — تقدر ترد على من راسلك أو قدّم عرضاً على إعلانك' : 'ما انرسلت الرسالة، حاول مرة ثانية');
     }
     setBusy(false);
   };
@@ -107,8 +109,8 @@ export default function ChatPage({ params }: { params: { id: string } }) {
     return (
       <div className="container page page-narrow empty">
         <h1 className="h2">المحادثة غير متاحة</h1>
-        <p className="lead">المحادثة تنفتح بين الطرفين بعد قبول العرض، أو بين صاحب المزاد والفائز بعد انتهائه.</p>
-        <Link href="/offers" className="btn btn-primary btn-lg">عروضي</Link>
+        <p className="lead">يمكن الإعلان انحذف، أو هذي محادثة ما تخصّك.</p>
+        <Link href="/browse" className="btn btn-primary btn-lg">تصفّح السوق</Link>
       </div>
     );
   }
@@ -131,7 +133,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
         <div className="chat-body" ref={boxRef} role="log" aria-live="polite" aria-label="الرسائل">
           <p className="chat-safety"><ShieldCheck size={14} /> تقابلوا في مكان عام وافحصوا قبل التسليم، ولا تحوّل أي مبلغ قبل ما تستلم.</p>
           {messages === null ? <div className="skeleton chat-skeleton" /> : messages.length === 0 ? (
-            <p className="chat-empty">ما فيه رسائل للحين. ابدأ ورتّب مع {otherName} مكان ووقت اللقاء.</p>
+            <p className="chat-empty">{iOwn ? `ما فيه رسائل للحين مع ${otherName}.` : `اسأل ${otherName} عن الغرض: حالته، مكانه، أو أي تفصيل يهمّك.`}</p>
           ) : (
             <AnimatePresence initial={false}>
               {messages.map((m) => {

@@ -4,18 +4,18 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowRight, Clock, Gavel, Heart, MapPin, Repeat2, ShieldCheck, ShoppingBag, Tag, Trash2 } from 'lucide-react';
+import { ArrowRight, Clock, Gavel, Heart, MapPin, MessagesSquare, Repeat2, ShieldCheck, ShoppingBag, Tag, Trash2 } from 'lucide-react';
 import AuctionPanel from '@/components/Auction';
 import BuyModal from '@/components/BuyModal';
 import OfferModal from '@/components/OfferModal';
 import OfferRow from '@/components/OfferRow';
 import { CategoryIcon, EASE, ListingArt, ListingCard } from '@/components/ui';
-import { KINDS, catById, formatSAR, listingValue, timeAgo } from '@/lib/data';
+import { KINDS, catById, formatSAR, listingThread, listingValue, timeAgo } from '@/lib/data';
 import { useStore } from '@/lib/store';
 
 export default function ListingPage({ params }: { params: { id: string } }) {
   const router = useRouter();
-  const { all, ready, me, favs, toggleFav, offersFor, removeListing, toast, authed } = useStore();
+  const { all, ready, me, favs, toggleFav, offersFor, removeListing, toast, authed, unread } = useStore();
   const [open, setOpen] = useState(false);
   const [shot, setShot] = useState(0);
   const listing = all.find((l) => l.id === params.id);
@@ -109,6 +109,10 @@ export default function ListingPage({ params }: { params: { id: string } }) {
                     {kind === 'sale' ? <ShoppingBag size={18} /> : <Repeat2 size={18} />} {myOffer ? 'أرسلت عرضك' : kind === 'sale' ? 'اطلب الشراء' : 'اعرض بدلك'}
                   </motion.button>
                 )}
+                <Link className="btn btn-ghost btn-lg chat-link" href={authed ? `/chat/${listingThread(listing.id, me.id)}` : `/login?next=/listing/${listing.id}`}>
+                  <MessagesSquare size={17} /> {unread.includes(listingThread(listing.id, me.id)) ? 'رسالة جديدة' : 'راسل صاحب الإعلان'}
+                  {unread.includes(listingThread(listing.id, me.id)) && <span className="dot" aria-hidden />}
+                </Link>
                 <motion.button className={`btn btn-ghost btn-lg ${fav ? 'is-fav' : ''}`} whileTap={{ scale: 0.94 }} onClick={() => toggleFav(listing.id)} aria-pressed={fav}>
                   <Heart size={17} fill={fav ? 'currentColor' : 'none'} /> {fav ? 'بالمفضلة' : 'احفظ'}
                 </motion.button>

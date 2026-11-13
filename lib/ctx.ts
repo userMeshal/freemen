@@ -39,6 +39,8 @@ export type Ctx = {
   loadMessages: (thread: string) => Promise<Message[]>;
   sendMessage: (thread: string, body: string) => Promise<void>;
   markRead: (thread: string) => void;
+  /** اسم مستخدم من معرّفه — لعنوان المحادثة */
+  peerName: (userId: string) => Promise<string>;
   /** طلبات دفع رسم عرض مزاداتي */
   fees: Fee[];
   /** صاحب المزاد يرسل بيانات تحويل رسم العرض */

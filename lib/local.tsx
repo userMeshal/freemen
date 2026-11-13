@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { SEED, auctionPhase, listingValue, minNextBid, tierOf, type Bid, type ChatHead, type Entry, type Fee, type Listing, type Message, type Offer } from './data';
+import { SEED, auctionPhase, listingValue, minNextBid, parseThread, tierOf, type Bid, type ChatHead, type Entry, type Fee, type Listing, type Message, type Offer } from './data';
 import { PLEDGE, pledgeBody } from './pledge';
 import { SITE } from './site';
 import { StoreCtx, useChatSeen, useToasts, type Ctx, type Me } from './ctx';
@@ -191,13 +191,17 @@ export function LocalProvider({ children }: { children: React.ReactNode }) {
   const loadMessages: Ctx['loadMessages'] = useCallback(async (thread) => messages.filter((m) => m.thread === thread), [messages]);
   const chatHeads = useMemo(() => {
     const heads: Record<string, ChatHead> = {};
-    for (const m of messages) heads[m.thread] = { thread: m.thread, lastAt: m.createdAt, lastFrom: m.senderId, lastBody: m.body };
+    for (const m of messages) {
+      const t = parseThread(m.thread);
+      heads[m.thread] = { thread: m.thread, listingId: t.listingId, peerId: t.peerId, peerName: state.offers.find((o) => o.fromId === t.peerId)?.fromName, lastAt: m.createdAt, lastFrom: m.senderId, lastBody: m.body };
+    }
     return heads;
-  }, [messages]);
+  }, [messages, state.offers]);
+  const peerName: Ctx['peerName'] = async (userId) => state.offers.find((o) => o.fromId === userId)?.fromName ?? 'مستخدم';
   const { unread, markRead } = useChatSeen(chatHeads, state.me.id);
 
   const value: Ctx = {
-    ...state, ...api, cloud: false, chatHeads, unread, markRead, loadMessages, authed: true, email: '', ready, all, toasts, toast, offersFor, contactFor,
+    ...state, ...api, cloud: false, chatHeads, unread, markRead, loadMessages, peerName, authed: true, email: '', ready, all, toasts, toast, offersFor, contactFor,
     signIn: async () => null,
     signUp: async () => ({}),
     signOut: async () => {},

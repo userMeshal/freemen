@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { parseThread, type Bid, type ChatHead, type Entry, type Fee, type Listing, type Message, type Offer } from './data';
+import { listingThread, parseThread, type Bid, type ChatHead, type Entry, type Fee, type Listing, type Message, type Offer } from './data';
 import { StoreCtx, useChatSeen, useToasts, type Ctx, type Me } from './ctx';
 
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -33,7 +33,7 @@ const toFee = (r: any): Fee => ({
   listingId: r.listing_id, ownerId: r.owner_id, ownerName: r.owner?.name, listingTitle: r.listing?.title,
   senderName: r.sender_name, reference: r.reference ?? '', status: r.status, createdAt: +new Date(r.created_at),
 });
-const threadOf = (r: any) => (r.offer_id ? `o-${r.offer_id}` : `a-${r.auction_id}`);
+const threadOf = (r: any) => listingThread(r.listing_id, r.peer_id);
 const toMessage = (r: any): Message => ({ id: r.id, thread: threadOf(r), senderId: r.sender_id, body: r.body, createdAt: +new Date(r.created_at) });
 const toBid = (r: any): Bid => ({
   id: r.id, listingId: r.listing_id, bidderId: r.bidder_id, bidderName: r.bidder?.name ?? 'مستخدم', amount: r.amount, createdAt: +new Date(r.created_at),
@@ -104,13 +104,20 @@ export function CloudProvider({ children }: { children: React.ReactNode }) {
       sb.from('auction_entries').select('*').eq('user_id', self).order('created_at', { ascending: false }),
       sb.from('auction_fees').select('*').eq('owner_id', self),
       // أحدث الرسائل في محادثاتي (قواعد الأمان ترجّع محادثاتي فقط) — لمعرفة غير المقروء
-      sb.from('messages').select('offer_id, auction_id, sender_id, body, created_at').order('created_at', { ascending: false }).limit(300),
+      sb.from('messages').select('listing_id, peer_id, sender_id, body, created_at').not('listing_id', 'is', null).order('created_at', { ascending: false }).limit(400),
     ]);
     if (m.data) {
       const heads: Record<string, ChatHead> = {};
       for (const r of m.data) {
         const thread = threadOf(r);
-        if (!heads[thread]) heads[thread] = { thread, lastAt: +new Date(r.created_at), lastFrom: r.sender_id, lastBody: r.body };
+        if (!heads[thread]) heads[thread] = { thread, listingId: r.listing_id, peerId: r.peer_id, lastAt: +new Date(r.created_at), lastFrom: r.sender_id, lastBody: r.body };
+      }
+      // أسماء الأطراف المهتمة (لصندوق رسائل صاحب الإعلان)
+      const peers = Array.from(new Set(Object.values(heads).map((h) => h.peerId).filter((id) => id !== self)));
+      if (peers.length) {
+        const { data: names } = await sb.from('profiles').select('id, name').in('id', peers);
+        const byId = Object.fromEntries((names ?? []).map((n) => [n.id, n.name]));
+        for (const h of Object.values(heads)) h.peerName = byId[h.peerId];
       }
       setChatHeads(heads);
     }
@@ -317,7 +324,7 @@ export function CloudProvider({ children }: { children: React.ReactNode }) {
 
     const loadMessages: Ctx['loadMessages'] = async (thread) => {
       const t = parseThread(thread);
-      const { data, error } = await sb.from('messages').select('*').eq(t.kind === 'offer' ? 'offer_id' : 'auction_id', t.id).order('created_at', { ascending: true }).limit(500);
+      const { data, error } = await sb.from('messages').select('*').eq('listing_id', t.listingId).eq('peer_id', t.peerId).order('created_at', { ascending: true }).limit(500);
       if (error) throw error;
       return (data ?? []).map(toMessage);
     };
@@ -325,9 +332,14 @@ export function CloudProvider({ children }: { children: React.ReactNode }) {
     const sendMessage: Ctx['sendMessage'] = async (thread, body) => {
       const sender_id = need();
       const t = parseThread(thread);
-      const { error } = await sb.from('messages').insert({ [t.kind === 'offer' ? 'offer_id' : 'auction_id']: t.id, sender_id, body: body.trim() });
+      const { error } = await sb.from('messages').insert({ listing_id: t.listingId, peer_id: t.peerId, sender_id, body: body.trim() });
       if (error) throw error;
       loadPrivate();
+    };
+
+    const peerName: Ctx['peerName'] = async (userId) => {
+      const { data } = await sb.from('profiles').select('name').eq('id', userId).maybeSingle();
+      return data?.name ?? 'مستخدم';
     };
 
     const requestAuctionFee: Ctx['requestAuctionFee'] = async (listingId, senderName, reference) => {
@@ -405,7 +417,7 @@ export function CloudProvider({ children }: { children: React.ReactNode }) {
       return error ? authError(error.message) : null;
     };
 
-    return { setMe, addListing, removeListing, addOffer, setOfferStatus, withdrawOffer, refreshListing, loadBids, placeBid, loadMessages, sendMessage, requestEntry, requestAuctionFee, loadPendingFees, reviewFee, loadPendingEntries, reviewEntry, toggleFav, signIn, signUp, signOut, resetPassword, updatePassword };
+    return { setMe, addListing, removeListing, addOffer, setOfferStatus, withdrawOffer, refreshListing, loadBids, placeBid, loadMessages, sendMessage, peerName, requestEntry, requestAuctionFee, loadPendingFees, reviewFee, loadPendingEntries, reviewEntry, toggleFav, signIn, signUp, signOut, resetPassword, updatePassword };
   }, [sb, uid, me, loadListings, loadPrivate]);
 
   const listings = useMemo(() => (uid ? all.filter((l) => l.ownerId === uid) : []), [all, uid]);
