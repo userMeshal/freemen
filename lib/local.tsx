@@ -1,14 +1,15 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { SEED, auctionPhase, listingValue, minNextBid, tierOf, type Bid, type Entry, type Fee, type Listing, type Offer } from './data';
+import { SEED, auctionPhase, listingValue, minNextBid, tierOf, type Bid, type ChatHead, type Entry, type Fee, type Listing, type Message, type Offer } from './data';
 import { PLEDGE, pledgeBody } from './pledge';
 import { SITE } from './site';
-import { StoreCtx, useToasts, type Ctx, type Me } from './ctx';
+import { StoreCtx, useChatSeen, useToasts, type Ctx, type Me } from './ctx';
 
 /** الوضع التجريبي: كل شي ينحفظ في متصفح الزائر، مع عروض نموذجية وردود محاكاة */
 type Live = Partial<Pick<Listing, 'currentBid' | 'bidsCount' | 'topBidder' | 'startsAt' | 'endsAt'>>;
 type State = { me: Me; listings: Listing[]; offers: Offer[]; favs: string[]; bids: Bid[]; entries: Entry[]; fees: Fee[]; live: Record<string, Live>;
+  messages: Message[];
   pledges: { listingId: string; userId: string; version: string; body: string; fee: number; acceptedAt: number }[];
 };
 
@@ -21,7 +22,7 @@ function demoValue(listing: Listing, i: number) {
   const estValue = round(i ? target * 0.7 : target * 1.05);
   return { estValue, valueTier: tierOf(estValue), cash: i ? round(target * 0.25) : 0 };
 }
-const empty: State = { me: { id: '', name: '', city: 'الرياض', whatsapp: '' }, listings: [], offers: [], favs: [], bids: [], entries: [], fees: [], live: {}, pledges: [] };
+const empty: State = { me: { id: '', name: '', city: 'الرياض', whatsapp: '' }, listings: [], offers: [], favs: [], bids: [], entries: [], fees: [], live: {}, pledges: [], messages: [] };
 
 export function LocalProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<State>(empty);
@@ -102,6 +103,16 @@ export function LocalProvider({ children }: { children: React.ReactNode }) {
 
     const withdrawOffer: Ctx['withdrawOffer'] = async (id) => setState((s) => ({ ...s, offers: s.offers.filter((o) => o.id !== id) }));
 
+    const sendMessage: Ctx['sendMessage'] = async (thread, body) => {
+      const mine: Message = { id: `m${uid()}`, thread, senderId: state.me.id, body: body.trim(), createdAt: Date.now() };
+      setState((s) => ({ ...s, messages: [...(s.messages ?? []), mine] }));
+      // في الوضع التجريبي الطرف الثاني وهمي: نرد مرة واحدة في كل محادثة حتى تنجرّب
+      later(2500, () => {
+        const reply: Message = { id: `m${uid()}`, thread, senderId: 'demo-peer', body: 'هلا! تمام، وين ومتى يناسبك نتقابل؟', createdAt: Date.now(), demo: true };
+        setState((s) => ((s.messages ?? []).some((m) => m.thread === thread && m.demo) ? s : { ...s, messages: [...(s.messages ?? []), reply] }));
+      });
+    };
+
     const requestAuctionFee: Ctx['requestAuctionFee'] = async (listingId, senderName, reference) => {
       const fee: Fee = { listingId, ownerId: state.me.id, senderName, reference, status: 'pending', createdAt: Date.now() };
       setState((s) => ({ ...s, fees: [fee, ...s.fees.filter((f) => f.listingId !== listingId)] }));
@@ -134,7 +145,7 @@ export function LocalProvider({ children }: { children: React.ReactNode }) {
     const toggleFav: Ctx['toggleFav'] = (id) =>
       setState((s) => ({ ...s, favs: s.favs.includes(id) ? s.favs.filter((f) => f !== id) : [...s.favs, id] }));
 
-    return { setMe, addListing, removeListing, addOffer, setOfferStatus, withdrawOffer, requestAuctionFee, requestEntry, toggleFav };
+    return { setMe, addListing, removeListing, addOffer, setOfferStatus, withdrawOffer, sendMessage, requestAuctionFee, requestEntry, toggleFav };
   }, [state.me.id, later, toast]);
 
   const all = useMemo(() => [...state.listings, ...SEED].map((l) => (state.live[l.id] ? { ...l, ...state.live[l.id] } : l)), [state.listings, state.live]);
@@ -176,8 +187,17 @@ export function LocalProvider({ children }: { children: React.ReactNode }) {
   const offersFor = useCallback((listingId: string) => state.offers.filter((o) => o.listingId === listingId), [state.offers]);
   const contactFor = useCallback((userId: string) => all.find((l) => l.ownerId === userId && l.whatsapp)?.whatsapp, [all]);
 
+  const messages = state.messages ?? [];
+  const loadMessages: Ctx['loadMessages'] = useCallback(async (thread) => messages.filter((m) => m.thread === thread), [messages]);
+  const chatHeads = useMemo(() => {
+    const heads: Record<string, ChatHead> = {};
+    for (const m of messages) heads[m.thread] = { thread: m.thread, lastAt: m.createdAt, lastFrom: m.senderId, lastBody: m.body };
+    return heads;
+  }, [messages]);
+  const { unread, markRead } = useChatSeen(chatHeads, state.me.id);
+
   const value: Ctx = {
-    ...state, ...api, cloud: false, authed: true, email: '', ready, all, toasts, toast, offersFor, contactFor,
+    ...state, ...api, cloud: false, chatHeads, unread, markRead, loadMessages, authed: true, email: '', ready, all, toasts, toast, offersFor, contactFor,
     signIn: async () => null,
     signUp: async () => ({}),
     signOut: async () => {},

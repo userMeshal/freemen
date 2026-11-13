@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import type { Bid, Entry, Fee, Listing, Offer } from './data';
-import { StoreCtx, useToasts, type Ctx, type Me } from './ctx';
+import { parseThread, type Bid, type ChatHead, type Entry, type Fee, type Listing, type Message, type Offer } from './data';
+import { StoreCtx, useChatSeen, useToasts, type Ctx, type Me } from './ctx';
 
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 // Supabase يسمّي المفتاح العلني publishable في المشاريع الجديدة و anon في القديمة
@@ -33,6 +33,8 @@ const toFee = (r: any): Fee => ({
   listingId: r.listing_id, ownerId: r.owner_id, ownerName: r.owner?.name, listingTitle: r.listing?.title,
   senderName: r.sender_name, reference: r.reference ?? '', status: r.status, createdAt: +new Date(r.created_at),
 });
+const threadOf = (r: any) => (r.offer_id ? `o-${r.offer_id}` : `a-${r.auction_id}`);
+const toMessage = (r: any): Message => ({ id: r.id, thread: threadOf(r), senderId: r.sender_id, body: r.body, createdAt: +new Date(r.created_at) });
 const toBid = (r: any): Bid => ({
   id: r.id, listingId: r.listing_id, bidderId: r.bidder_id, bidderName: r.bidder?.name ?? 'مستخدم', amount: r.amount, createdAt: +new Date(r.created_at),
 });
@@ -83,6 +85,7 @@ export function CloudProvider({ children }: { children: React.ReactNode }) {
   const [fees, setFees] = useState<Fee[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [favs, setFavs] = useState<string[]>([]);
+  const [chatHeads, setChatHeads] = useState<Record<string, ChatHead>>({});
   const [ready, setReady] = useState(false);
 
   const loadListings = useCallback(async () => {
@@ -95,12 +98,22 @@ export function CloudProvider({ children }: { children: React.ReactNode }) {
     const { data: auth } = await sb.auth.getSession();
     const self = auth.session?.user.id;
     if (!self) return;
-    const [o, c, e, f] = await Promise.all([
+    const [o, c, e, f, m] = await Promise.all([
       sb.from('offers').select(OFFER_COLS).order('created_at', { ascending: false }),
       sb.from('contacts').select('user_id, whatsapp'),
       sb.from('auction_entries').select('*').eq('user_id', self).order('created_at', { ascending: false }),
       sb.from('auction_fees').select('*').eq('owner_id', self),
+      // أحدث الرسائل في محادثاتي (قواعد الأمان ترجّع محادثاتي فقط) — لمعرفة غير المقروء
+      sb.from('messages').select('offer_id, auction_id, sender_id, body, created_at').order('created_at', { ascending: false }).limit(300),
     ]);
+    if (m.data) {
+      const heads: Record<string, ChatHead> = {};
+      for (const r of m.data) {
+        const thread = threadOf(r);
+        if (!heads[thread]) heads[thread] = { thread, lastAt: +new Date(r.created_at), lastFrom: r.sender_id, lastBody: r.body };
+      }
+      setChatHeads(heads);
+    }
     if (f.data) setFees(f.data.map(toFee));
     if (e.data) setEntries(e.data.map(toEntry));
     if (o.data) setOffers(o.data.map(toOffer));
@@ -139,6 +152,7 @@ export function CloudProvider({ children }: { children: React.ReactNode }) {
       setContacts({});
       setEntries([]);
       setFees([]);
+      setChatHeads({});
       setIsAdmin(false);
       return;
     }
@@ -151,6 +165,7 @@ export function CloudProvider({ children }: { children: React.ReactNode }) {
       if (alive) setMeState({ id: uid, name: p.data?.name ?? '', city: p.data?.city ?? 'الرياض', whatsapp: c.data?.whatsapp ?? '' });
     })();
     loadPrivate();
+    const poll = setInterval(() => document.visibilityState === 'visible' && loadPrivate(), 30_000);
     sb.rpc('is_admin').then(({ data }) => alive && setIsAdmin(data === true));
     const channel = sb
       .channel(`offers-${uid}`)
@@ -167,6 +182,11 @@ export function CloudProvider({ children }: { children: React.ReactNode }) {
         if (row?.user_id === uid && row.status === 'approved') toast('تفعّل دخولك للمزاد — تقدر تزايد الحين');
         if (row?.user_id === uid && row.status === 'rejected') toast('ما قدرنا نتحقق من تحويلك — شوف صفحة المزاد');
       })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
+        loadPrivate();
+        const row = payload.new as { sender_id?: string } | null;
+        if (row?.sender_id !== uid && !window.location.pathname.startsWith('/chat/')) toast('وصلتك رسالة جديدة');
+      })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'auction_fees' }, (payload) => {
         loadPrivate();
         loadListings();
@@ -177,6 +197,7 @@ export function CloudProvider({ children }: { children: React.ReactNode }) {
       .subscribe();
     return () => {
       alive = false;
+      clearInterval(poll);
       sb.removeChannel(channel);
     };
   }, [sb, uid, loadPrivate, loadListings, toast]);
@@ -294,6 +315,21 @@ export function CloudProvider({ children }: { children: React.ReactNode }) {
       await loadPrivate();
     };
 
+    const loadMessages: Ctx['loadMessages'] = async (thread) => {
+      const t = parseThread(thread);
+      const { data, error } = await sb.from('messages').select('*').eq(t.kind === 'offer' ? 'offer_id' : 'auction_id', t.id).order('created_at', { ascending: true }).limit(500);
+      if (error) throw error;
+      return (data ?? []).map(toMessage);
+    };
+
+    const sendMessage: Ctx['sendMessage'] = async (thread, body) => {
+      const sender_id = need();
+      const t = parseThread(thread);
+      const { error } = await sb.from('messages').insert({ [t.kind === 'offer' ? 'offer_id' : 'auction_id']: t.id, sender_id, body: body.trim() });
+      if (error) throw error;
+      loadPrivate();
+    };
+
     const requestAuctionFee: Ctx['requestAuctionFee'] = async (listingId, senderName, reference) => {
       const owner_id = need();
       await sb.from('auction_fees').delete().eq('listing_id', listingId).neq('status', 'approved');
@@ -369,15 +405,17 @@ export function CloudProvider({ children }: { children: React.ReactNode }) {
       return error ? authError(error.message) : null;
     };
 
-    return { setMe, addListing, removeListing, addOffer, setOfferStatus, withdrawOffer, refreshListing, loadBids, placeBid, requestEntry, requestAuctionFee, loadPendingFees, reviewFee, loadPendingEntries, reviewEntry, toggleFav, signIn, signUp, signOut, resetPassword, updatePassword };
+    return { setMe, addListing, removeListing, addOffer, setOfferStatus, withdrawOffer, refreshListing, loadBids, placeBid, loadMessages, sendMessage, requestEntry, requestAuctionFee, loadPendingFees, reviewFee, loadPendingEntries, reviewEntry, toggleFav, signIn, signUp, signOut, resetPassword, updatePassword };
   }, [sb, uid, me, loadListings, loadPrivate]);
 
   const listings = useMemo(() => (uid ? all.filter((l) => l.ownerId === uid) : []), [all, uid]);
   const offersFor = useCallback((listingId: string) => offers.filter((o) => o.listingId === listingId), [offers]);
   const contactFor = useCallback((userId: string) => contacts[userId], [contacts]);
 
+  const { unread, markRead } = useChatSeen(chatHeads, uid ?? '');
+
   const value: Ctx = {
-    ...api, cloud: true, authed: !!uid, email, ready, me, listings, all, offers, favs, toasts, toast, offersFor, contactFor, entries, fees, isAdmin,
+    ...api, cloud: true, chatHeads, unread, markRead, authed: !!uid, email, ready, me, listings, all, offers, favs, toasts, toast, offersFor, contactFor, entries, fees, isAdmin,
   };
   return <StoreCtx.Provider value={value}>{children}</StoreCtx.Provider>;
 }

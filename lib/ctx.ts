@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import type { Bid, Entry, Fee, Listing, Offer } from './data';
+import type { Bid, ChatHead, Entry, Fee, Listing, Message, Offer } from './data';
 
 export type Me = { id: string; name: string; city: string; whatsapp: string };
 export type Toast = { id: number; text: string };
@@ -32,6 +32,13 @@ export type Ctx = {
   setOfferStatus: (id: string, status: Offer['status']) => Promise<void>;
   /** المرسل يسحب عرضه قبل الرد عليه */
   withdrawOffer: (id: string) => Promise<void>;
+  /** آخر رسالة في كل محادثة تخصّني */
+  chatHeads: Record<string, ChatHead>;
+  /** المحادثات اللي فيها رسالة من الطرف الثاني ما انقرت */
+  unread: string[];
+  loadMessages: (thread: string) => Promise<Message[]>;
+  sendMessage: (thread: string, body: string) => Promise<void>;
+  markRead: (thread: string) => void;
   /** طلبات دفع رسم عرض مزاداتي */
   fees: Fee[];
   /** صاحب المزاد يرسل بيانات تحويل رسم العرض */
@@ -93,6 +100,29 @@ export function useToasts() {
     [later],
   );
   return { toasts, toast, later };
+}
+
+const SEEN = 'badal:chat-seen';
+
+/** آخر وقت فتح فيه المستخدم كل محادثة — محفوظ في المتصفح، ويحدد الرسائل غير المقروءة */
+export function useChatSeen(heads: Record<string, ChatHead>, myId: string) {
+  const [seen, setSeen] = useState<Record<string, number>>({});
+  useEffect(() => {
+    try {
+      setSeen(JSON.parse(localStorage.getItem(SEEN) ?? '{}'));
+    } catch {}
+  }, []);
+  const markRead = useCallback((thread: string) => {
+    setSeen((s) => {
+      const next = { ...s, [thread]: Date.now() };
+      try {
+        localStorage.setItem(SEEN, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  }, []);
+  const unread = Object.values(heads).filter((h) => h.lastFrom !== myId && h.lastAt > (seen[h.thread] ?? 0)).map((h) => h.thread);
+  return { unread, markRead };
 }
 
 /** يصغّر الصورة قبل حفظها حتى ما تثقل التخزين */
