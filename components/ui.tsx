@@ -7,7 +7,7 @@ import {
   Baby, Bike, BookOpen, Camera, Car, Clock, Gamepad2, Gavel, Gem, Heart, Laptop, MapPin, Repeat2, Smartphone, Sofa, Tag, Watch, Wrench,
   type LucideIcon,
 } from 'lucide-react';
-import { auctionEnded, catById, formatSAR, timeAgo, timeLeft, type Listing } from '@/lib/data';
+import { auctionStatus, catById, formatSAR, timeAgo, type Listing } from '@/lib/data';
 import { useStore } from '@/lib/store';
 
 export const EASE = [0.22, 1, 0.36, 1] as const;
@@ -102,7 +102,7 @@ export function ListingCard({ listing, index = 0 }: { listing: Listing; index?: 
           )}
           <div className="card-foot">
             {listing.kind === 'auction' ? (
-              <span className="card-count" suppressHydrationWarning><Clock size={13} /> {auctionEnded(listing) ? 'انتهى المزاد' : `باقي ${timeLeft(listing.endsAt ?? 0)}`} · {listing.bidsCount ?? 0} مزايدة</span>
+              <span className="card-count" suppressHydrationWarning><Clock size={13} /> {auctionStatus(listing)} · {listing.bidsCount ?? 0} مزايدة</span>
             ) : (
               <span className="card-count">{count ? `${count} ${listing.kind === 'sale' ? 'طلب شراء' : 'عرض بدل'}` : 'كن أول من يعرض'}</span>
             )}

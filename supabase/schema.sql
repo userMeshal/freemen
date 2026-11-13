@@ -190,7 +190,9 @@ end $$;
 alter table public.listings add column if not exists kind text not null default 'swap';
 alter table public.listings add column if not exists price integer;            -- سعر البيع أو سعر بداية المزاد
 alter table public.listings add column if not exists min_increment integer not null default 10;
-alter table public.listings add column if not exists ends_at timestamptz;      -- نهاية المزاد
+alter table public.listings add column if not exists ends_at timestamptz;      -- نهاية المزاد (تُحسب عند تفعيله)
+alter table public.listings add column if not exists starts_at timestamptz;    -- بداية المزاد: نصف ساعة بعد تأكيد دفع رسم العرض
+alter table public.listings add column if not exists duration_minutes integer; -- مدة المزاد من بدايته
 alter table public.listings add column if not exists current_bid integer;
 alter table public.listings add column if not exists top_bidder uuid;  -- بدون مفتاح أجنبي عمداً: مفتاح ثاني إلى profiles يلخبط ربط صاحب العرض في الاستعلامات
 alter table public.listings add column if not exists bids_count integer not null default 0;
@@ -199,7 +201,7 @@ alter table public.listings drop constraint if exists listings_kind_chk;
 alter table public.listings add constraint listings_kind_chk check (
   kind in ('swap', 'sale', 'auction')
   and (kind = 'swap' or (price is not null and price between 1 and 100000000))
-  and (kind <> 'auction' or ends_at is not null)
+  and (kind <> 'auction' or (duration_minutes is not null and duration_minutes between 15 and 10080))
   and min_increment between 1 and 1000000
 );
 
@@ -230,9 +232,13 @@ returns text language sql stable security definer set search_path = public as $$
   select kind from public.listings where id = lid;
 $$;
 
+-- التسجيل في المزاد مفتوح من تفعيله وحتى 5 دقائق قبل بدايته
 create or replace function public.auction_open(lid uuid)
 returns boolean language sql stable security definer set search_path = public as $$
-  select exists (select 1 from public.listings where id = lid and kind = 'auction' and ends_at > now());
+  select exists (
+    select 1 from public.listings
+    where id = lid and kind = 'auction' and starts_at is not null and now() < starts_at - interval '5 minutes'
+  );
 $$;
 
 -- ───────── طلبات دخول المزاد (رسم بتحويل بنكي يتحقق منه المشرف) ─────────
@@ -291,6 +297,7 @@ begin
   select * into l from public.listings where id = p_listing for update;   -- قفل الصف: مزايدتان بنفس اللحظة تتنفّذان بالترتيب
   if not found or l.kind <> 'auction' then raise exception 'NOT_AUCTION'; end if;
   if l.owner_id = uid then raise exception 'OWN'; end if;
+  if l.starts_at is null or now() < l.starts_at then raise exception 'NOT_STARTED'; end if;
   if now() >= l.ends_at then raise exception 'ENDED'; end if;
   if not exists (select 1 from public.auction_entries where listing_id = p_listing and user_id = uid and status = 'approved') then
     raise exception 'NO_ENTRY';
@@ -334,13 +341,13 @@ create policy "offers insert" on public.offers for insert to authenticated
     and kind = case public.listing_kind(listing_id) when 'swap' then 'swap' when 'sale' then 'buy' end
   );
 
--- مدة المزاد بين نصف ساعة و31 يوم
 drop policy if exists "listings insert own" on public.listings;
-create policy "listings insert own" on public.listings for insert to authenticated
-  with check (
-    owner_id = auth.uid()
-    and (kind <> 'auction' or (ends_at > now() + interval '30 minutes' and ends_at < now() + interval '31 days'))
-  );
+create policy "listings insert own" on public.listings for insert to authenticated with check (owner_id = auth.uid());
+
+-- المزاد لا يظهر للناس إلا بعد تفعيله (تأكيد دفع رسم العرض)؛ قبلها يراه صاحبه والمشرف فقط
+drop policy if exists "listings read" on public.listings;
+create policy "listings read" on public.listings for select
+  using (kind <> 'auction' or starts_at is not null or owner_id = auth.uid() or public.is_admin());
 
 -- المزاد لا يُحذف بعد أول مزايدة
 drop policy if exists "listings delete own" on public.listings;
@@ -348,14 +355,148 @@ create policy "listings delete own" on public.listings for delete to authenticat
   using (owner_id = auth.uid() and (kind <> 'auction' or bids_count = 0));
 
 -- الأعمدة الجديدة اللي يكتبها صاحب العرض عند النشر فقط (السعر الحالي والعدّاد تكتبها place_bid)
-grant insert (kind, price, min_increment, ends_at) on public.listings to authenticated;
+-- وقت البداية والنهاية يحددهما تفعيل المشرف، لا صاحب العرض
+revoke insert (ends_at) on public.listings from authenticated;
+grant insert (kind, price, min_increment, duration_minutes) on public.listings to authenticated;
+
+-- ───────── رسم عرض المزاد (يدفعه صاحب المزاد بتحويل بنكي) ─────────
+create table if not exists public.auction_fees (
+  listing_id uuid primary key references public.listings (id) on delete cascade,
+  owner_id uuid not null references public.profiles (id) on delete cascade,
+  sender_name text not null check (char_length(sender_name) between 2 and 80),
+  reference text not null default '' check (char_length(reference) <= 80),
+  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  created_at timestamptz not null default now()
+);
+alter table public.auction_fees enable row level security;
+
+drop policy if exists "fees read own or admin" on public.auction_fees;
+drop policy if exists "fees request" on public.auction_fees;
+drop policy if exists "fees cancel own" on public.auction_fees;
+create policy "fees read own or admin" on public.auction_fees for select to authenticated
+  using (owner_id = auth.uid() or public.is_admin());
+create policy "fees request" on public.auction_fees for insert to authenticated
+  with check (owner_id = auth.uid() and status = 'pending' and public.owns_listing(listing_id) and public.listing_kind(listing_id) = 'auction');
+create policy "fees cancel own" on public.auction_fees for delete to authenticated
+  using (owner_id = auth.uid() and status <> 'approved');
+-- الحالة تتغير عبر review_auction_fee فقط
+revoke update on public.auction_fees from anon, authenticated;
+
+-- المشرف يؤكد وصول رسم العرض: يبدأ المزاد بعد نصف ساعة من التأكيد وينتهي بعد مدته
+create or replace function public.review_auction_fee(p_listing uuid, p_approve boolean)
+returns public.listings language plpgsql security definer set search_path = public as $$
+declare
+  l public.listings;
+begin
+  if not public.is_admin() then raise exception 'FORBIDDEN'; end if;
+  select * into l from public.listings where id = p_listing for update;
+  if not found or l.kind <> 'auction' then raise exception 'NOT_AUCTION'; end if;
+  if l.starts_at is not null then raise exception 'ALREADY_ACTIVE'; end if;
+  if p_approve then
+    update public.auction_fees set status = 'approved' where listing_id = p_listing and status = 'pending';
+    if not found then raise exception 'NO_REQUEST'; end if;
+    update public.listings
+       set starts_at = now() + interval '30 minutes',
+           ends_at = now() + interval '30 minutes' + make_interval(mins => duration_minutes)
+     where id = p_listing
+     returning * into l;
+  else
+    update public.auction_fees set status = 'rejected' where listing_id = p_listing and status = 'pending';
+  end if;
+  return l;
+end $$;
+revoke execute on function public.review_auction_fee(uuid, boolean) from public, anon;
+grant execute on function public.review_auction_fee(uuid, boolean) to authenticated;
 
 do $$
 begin
   if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'bids') then
     alter publication supabase_realtime add table public.bids;
   end if;
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'auction_fees') then
+    alter publication supabase_realtime add table public.auction_fees;
+  end if;
   if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'auction_entries') then
     alter publication supabase_realtime add table public.auction_entries;
   end if;
 end $$;
+
+-- ════════════════════════════════════════════════════════════════
+--  المرحلة 3: التعهد بسداد رسوم الموقع عند نشر الإعلان
+--  لا يُنشر أي إعلان إلا ومعه موافقة صريحة على نسخة التعهد السارية.
+--  الفرض هنا في القاعدة نفسها، فلا يتجاوزه طلب API مباشر.
+-- ════════════════════════════════════════════════════════════════
+
+-- نُسخ التعهد: النص المعتمد يُحفظ هنا، والموافقة تنسخه كما هو لحظة القبول
+create table if not exists public.pledge_versions (
+  version text primary key,
+  body text not null,
+  fee integer not null check (fee > 0),
+  active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+alter table public.pledge_versions enable row level security;
+drop policy if exists "pledge versions read" on public.pledge_versions;
+create policy "pledge versions read" on public.pledge_versions for select using (true);
+revoke insert, update, delete on public.pledge_versions from anon, authenticated;
+
+-- النص يجب أن يطابق lib/pledge.ts حرفياً. أي تعديل على النص = نسخة جديدة (v2) لا تعديل على القديمة.
+insert into public.pledge_versions (version, fee, body) values ('v1', 20,
+  'أقسم بالله العظيم أنني في حال إتمام بيع السلعة المعلن عنها عن طريق هذا الموقع، أتعهد بسداد رسوم الموقع البالغة 20 ريالًا سعوديًا عن كل عملية بيع مكتملة.' || E'\n\n' ||
+  'وأقر بأن هذه الرسوم حق للموقع، وأتعهد بسدادها بعد إتمام البيع، دون مماطلة أو تأخير.' || E'\n\n' ||
+  'والله على ما أقول شهيد.')
+on conflict (version) do nothing;
+
+-- سجل الموافقات: من وافق، على أي إعلان، متى، وعلى أي نص
+create table if not exists public.pledges (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  listing_id uuid not null unique,          -- بدون مفتاح أجنبي عمداً: السجل يبقى لو انحذف الإعلان
+  listing_title text not null,
+  version text not null references public.pledge_versions (version),
+  body text not null,                       -- نسخة النص كما وافق عليها
+  fee integer not null,
+  accepted_at timestamptz not null default now()
+);
+create index if not exists pledges_user_idx on public.pledges (user_id, accepted_at desc);
+alter table public.pledges enable row level security;
+drop policy if exists "pledges read own or admin" on public.pledges;
+create policy "pledges read own or admin" on public.pledges for select to authenticated
+  using (user_id = auth.uid() or public.is_admin());
+-- لا كتابة مباشرة: السجل ينشأ من trigger النشر فقط، ولا يُعدَّل ولا يُحذف
+revoke insert, update, delete on public.pledges from anon, authenticated;
+
+alter table public.listings add column if not exists pledge_version text;
+alter table public.listings add column if not exists pledge_accepted_at timestamptz;
+
+-- قبل الإدراج: لا إعلان بدون موافقة على نسخة سارية؛ ووقت الموافقة من ساعة الخادم
+create or replace function public.require_pledge()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.pledge_version is null
+     or not exists (select 1 from public.pledge_versions where version = new.pledge_version and active) then
+    raise exception 'PLEDGE_REQUIRED';
+  end if;
+  new.pledge_accepted_at := now();
+  return new;
+end $$;
+
+-- بعد الإدراج: نسجّل الموافقة مربوطة بالمستخدم والإعلان مع نسخة النص
+create or replace function public.record_pledge()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  insert into public.pledges (user_id, listing_id, listing_title, version, body, fee, accepted_at)
+  select new.owner_id, new.id, new.title, v.version, v.body, v.fee, new.pledge_accepted_at
+  from public.pledge_versions v where v.version = new.pledge_version;
+  return null;
+end $$;
+
+drop trigger if exists listings_require_pledge on public.listings;
+create trigger listings_require_pledge before insert on public.listings
+  for each row execute function public.require_pledge();
+drop trigger if exists listings_record_pledge on public.listings;
+create trigger listings_record_pledge after insert on public.listings
+  for each row execute function public.record_pledge();
+
+-- المستخدم يرسل رقم النسخة عند النشر فقط؛ لا يكتب وقت الموافقة ولا يغيّرهما لاحقاً
+grant insert (pledge_version) on public.listings to authenticated;

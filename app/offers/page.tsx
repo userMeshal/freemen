@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Gavel, Heart, Inbox, LogOut, Plus, Send } from 'lucide-react';
 import OfferRow from '@/components/OfferRow';
 import { ListingArt, ListingCard } from '@/components/ui';
-import { auctionEnded, formatSAR, timeLeft } from '@/lib/data';
+import { auctionEnded, auctionStatus, formatSAR } from '@/lib/data';
 import { useStore } from '@/lib/store';
 
 const TABS = [
@@ -70,7 +70,7 @@ export default function OffersPage() {
                         <strong>{l.title}</strong>
                         <small>
                           {l.kind === 'auction'
-                            ? `مزاد · ${l.bidsCount ?? 0} مزايدة${l.currentBid ? ` · الأعلى ${formatSAR(l.currentBid)}` : ''} · ${auctionEnded(l) ? 'انتهى' : `باقي ${timeLeft(l.endsAt ?? 0)}`}`
+                            ? `مزاد · ${l.bidsCount ?? 0} مزايدة${l.currentBid ? ` · الأعلى ${formatSAR(l.currentBid)}` : ''} · ${auctionStatus(l)}`
                             : incoming.length ? `${incoming.length} ${l.kind === 'sale' ? 'طلب شراء' : 'عرض بدل'}` : 'بانتظار أول عرض…'}
                         </small>
                       </div>
@@ -104,7 +104,7 @@ export default function OffersPage() {
                         {l && (
                           <div className="offer-sub">
                             <span>{l.currentBid ? `أعلى مزايدة ${formatSAR(l.currentBid)}` : `يبدأ من ${formatSAR(l.price ?? 0)}`}</span>
-                            <span suppressHydrationWarning>{auctionEnded(l) ? 'انتهى' : `باقي ${timeLeft(l.endsAt ?? 0)}`}</span>
+                            <span suppressHydrationWarning>{auctionStatus(l)}</span>
                             {l.topBidder === me.id && <span className="fair-tag fair-2">{auctionEnded(l) ? 'فزت بالمزاد' : 'أنت الأعلى'}</span>}
                           </div>
                         )}
