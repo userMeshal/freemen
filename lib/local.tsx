@@ -187,7 +187,7 @@ export function LocalProvider({ children }: { children: React.ReactNode }) {
   const offersFor = useCallback((listingId: string) => state.offers.filter((o) => o.listingId === listingId), [state.offers]);
   const contactFor = useCallback((userId: string) => all.find((l) => l.ownerId === userId && l.whatsapp)?.whatsapp, [all]);
 
-  const messages = state.messages ?? [];
+  const messages = useMemo(() => state.messages ?? [], [state.messages]);
   const loadMessages: Ctx['loadMessages'] = useCallback(async (thread) => messages.filter((m) => m.thread === thread), [messages]);
   const chatHeads = useMemo(() => {
     const heads: Record<string, ChatHead> = {};
