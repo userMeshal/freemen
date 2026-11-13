@@ -689,3 +689,101 @@ end $$;
 
 revoke execute on function public.admin_list(), public.admin_add(text), public.admin_remove(uuid), public.admin_delete_listing(uuid, text) from public, anon;
 grant execute on function public.admin_list(), public.admin_add(text), public.admin_remove(uuid), public.admin_delete_listing(uuid, text) to authenticated;
+
+-- ════════════════════════════════════════════════════════════════
+--  المرحلة 7: التبليغ، الحظر، وحذف الحساب
+--  متطلبات متاجر التطبيقات لأي منصة فيها محتوى من المستخدمين:
+--  التبليغ عن محتوى أو مستخدم، حظر مستخدم مسيء، وحذف الحساب من داخل التطبيق.
+-- ════════════════════════════════════════════════════════════════
+
+-- ───────── البلاغات ─────────
+create table if not exists public.reports (
+  id uuid primary key default gen_random_uuid(),
+  reporter_id uuid references public.profiles (id) on delete set null,   -- البلاغ يبقى للإدارة لو حذف المبلّغ حسابه
+  target text not null check (target in ('listing', 'user')),
+  listing_id uuid,                              -- بدون مفتاح أجنبي: البلاغ يبقى لو انحذف الإعلان
+  listing_title text,
+  reported_user_id uuid references public.profiles (id) on delete set null,
+  reason text not null check (reason in ('fraud', 'prohibited', 'offensive', 'misleading', 'harassment', 'other')),
+  details text not null default '' check (char_length(details) <= 500),
+  status text not null default 'open' check (status in ('open', 'resolved')),
+  created_at timestamptz not null default now()
+);
+create index if not exists reports_open_idx on public.reports (status, created_at);
+alter table public.reports enable row level security;
+drop policy if exists "reports read own or admin" on public.reports;
+drop policy if exists "reports create" on public.reports;
+drop policy if exists "reports admin resolves" on public.reports;
+create policy "reports read own or admin" on public.reports for select to authenticated
+  using (reporter_id = auth.uid() or public.is_admin());
+create policy "reports create" on public.reports for insert to authenticated
+  with check (reporter_id = auth.uid() and status = 'open' and (reported_user_id is null or reported_user_id <> auth.uid()));
+create policy "reports admin resolves" on public.reports for update to authenticated
+  using (public.is_admin()) with check (public.is_admin());
+revoke update, delete on public.reports from anon, authenticated;
+grant update (status) on public.reports to authenticated;
+
+-- ───────── الحظر ─────────
+create table if not exists public.blocks (
+  blocker_id uuid not null references public.profiles (id) on delete cascade,
+  blocked_id uuid not null references public.profiles (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (blocker_id, blocked_id),
+  check (blocker_id <> blocked_id)
+);
+alter table public.blocks enable row level security;
+drop policy if exists "blocks own" on public.blocks;
+drop policy if exists "blocks add own" on public.blocks;
+drop policy if exists "blocks remove own" on public.blocks;
+create policy "blocks own" on public.blocks for select to authenticated using (blocker_id = auth.uid());
+create policy "blocks add own" on public.blocks for insert to authenticated with check (blocker_id = auth.uid());
+create policy "blocks remove own" on public.blocks for delete to authenticated using (blocker_id = auth.uid());
+revoke update on public.blocks from anon, authenticated;
+
+-- هل أحد الطرفين حاظر الثاني؟ (الحظر يقطع التواصل بالاتجاهين)
+create or replace function public.is_blocked(a uuid, b uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from public.blocks
+    where (blocker_id = a and blocked_id = b) or (blocker_id = b and blocked_id = a)
+  );
+$$;
+
+-- حظر بين صاحب الإعلان ومستخدم معيّن
+create or replace function public.blocked_with_owner(lid uuid, other uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select coalesce((select public.is_blocked(l.owner_id, other) from public.listings l where l.id = lid), false);
+$$;
+
+-- المحظور لا يراسل ولا يقدّم عرضاً على إعلانات من حظره (ولا العكس)
+drop policy if exists "messages send parties" on public.messages;
+create policy "messages send parties" on public.messages for insert to authenticated
+  with check (
+    sender_id = auth.uid() and listing_id is not null and peer_id is not null
+    and not public.blocked_with_owner(listing_id, peer_id)
+    and (
+      (peer_id = auth.uid() and not public.owns_listing(listing_id) and public.listing_visible(listing_id))
+      or (peer_id <> auth.uid() and public.owns_listing(listing_id) and public.owner_may_message(listing_id, peer_id))
+    )
+  );
+
+drop policy if exists "offers insert" on public.offers;
+create policy "offers insert" on public.offers for insert to authenticated
+  with check (
+    from_id = auth.uid() and status = 'pending' and not public.owns_listing(listing_id)
+    and not public.blocked_with_owner(listing_id, auth.uid())
+    and kind = case public.listing_kind(listing_id) when 'swap' then 'swap' when 'sale' then 'buy' end
+  );
+
+-- ───────── حذف الحساب ─────────
+-- المستخدم يحذف حسابه نهائياً من داخل الموقع: تنحذف معه إعلاناته وعروضه ورسائله وبياناته.
+create or replace function public.delete_my_account()
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then raise exception 'AUTH'; end if;
+  -- المشرف الأساسي لا يحذف حسابه من الموقع حتى لا يبقى الموقع بلا إدارة
+  if public.is_root_admin() then raise exception 'ROOT'; end if;
+  delete from auth.users where id = auth.uid();
+end $$;
+revoke execute on function public.delete_my_account() from public, anon;
+grant execute on function public.delete_my_account() to authenticated;

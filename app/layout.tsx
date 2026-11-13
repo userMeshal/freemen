@@ -10,10 +10,14 @@ import Chrome from '@/components/Chrome';
 export const metadata: Metadata = {
   title: { default: 'حطّها — بدّل، بِع، وزاوِد', template: '%s — حطّها' },
   applicationName: 'حطّها',
+  appleWebApp: { capable: true, title: 'حطّها', statusBarStyle: 'default' },
+  formatDetection: { telephone: false },
   description: 'سوق واحد لكل أغراضك في السعودية: بدّلها بغرض ثاني، بيعها بسعرك، أو اعرضها بمزاد.',
 };
 
 export const viewport: Viewport = {
+  // المحتوى يمتد تحت النتوء وشريط الحالة في الآيفون، والهوامش الآمنة تُحسب في CSS
+  viewportFit: 'cover',
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#ffffff' },
     { media: '(prefers-color-scheme: dark)', color: '#0b0b0c' },

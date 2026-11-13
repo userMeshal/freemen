@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { listingThread, parseThread, type Bid, type ChatHead, type Entry, type Fee, type Listing, type Message, type Offer } from './data';
+import { listingThread, parseThread, type Blocked, type Report, type Bid, type ChatHead, type Entry, type Fee, type Listing, type Message, type Offer } from './data';
 import { StoreCtx, useChatSeen, useToasts, type Ctx, type Me } from './ctx';
 
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -83,6 +83,7 @@ export function CloudProvider({ children }: { children: React.ReactNode }) {
   const [contacts, setContacts] = useState<Record<string, string>>({});
   const [entries, setEntries] = useState<Entry[]>([]);
   const [fees, setFees] = useState<Fee[]>([]);
+  const [blocked, setBlocked] = useState<Blocked[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isRootAdmin, setIsRootAdmin] = useState(false);
   const [favs, setFavs] = useState<string[]>([]);
@@ -99,11 +100,12 @@ export function CloudProvider({ children }: { children: React.ReactNode }) {
     const { data: auth } = await sb.auth.getSession();
     const self = auth.session?.user.id;
     if (!self) return;
-    const [o, c, e, f, m] = await Promise.all([
+    const [o, c, e, f, bl, m] = await Promise.all([
       sb.from('offers').select(OFFER_COLS).order('created_at', { ascending: false }),
       sb.from('contacts').select('user_id, whatsapp'),
       sb.from('auction_entries').select('*').eq('user_id', self).order('created_at', { ascending: false }),
       sb.from('auction_fees').select('*').eq('owner_id', self),
+      sb.from('blocks').select('blocked_id').eq('blocker_id', self),
       // أحدث الرسائل في محادثاتي (قواعد الأمان ترجّع محادثاتي فقط) — لمعرفة غير المقروء
       sb.from('messages').select('listing_id, peer_id, sender_id, body, created_at').not('listing_id', 'is', null).order('created_at', { ascending: false }).limit(400),
     ]);
@@ -121,6 +123,12 @@ export function CloudProvider({ children }: { children: React.ReactNode }) {
         for (const h of Object.values(heads)) h.peerName = byId[h.peerId];
       }
       setChatHeads(heads);
+    }
+    if (bl.data) {
+      const ids = bl.data.map((b) => b.blocked_id);
+      const { data: names } = ids.length ? await sb.from('profiles').select('id, name').in('id', ids) : { data: [] };
+      const byId = Object.fromEntries((names ?? []).map((n) => [n.id, n.name]));
+      setBlocked(ids.map((userId) => ({ userId, name: byId[userId] ?? 'مستخدم' })));
     }
     if (f.data) setFees(f.data.map(toFee));
     if (e.data) setEntries(e.data.map(toEntry));
@@ -160,6 +168,7 @@ export function CloudProvider({ children }: { children: React.ReactNode }) {
       setContacts({});
       setEntries([]);
       setFees([]);
+      setBlocked([]);
       setChatHeads({});
       setIsAdmin(false);
       setIsRootAdmin(false);
@@ -436,6 +445,58 @@ export function CloudProvider({ children }: { children: React.ReactNode }) {
       return { confirm: !data.session };
     };
 
+    const blockUser: Ctx['blockUser'] = async (userId, name) => {
+      const blocker_id = need();
+      const { error } = await sb.from('blocks').upsert({ blocker_id, blocked_id: userId }, { onConflict: 'blocker_id,blocked_id', ignoreDuplicates: true });
+      if (error) throw error;
+      setBlocked((b) => [{ userId, name }, ...b.filter((x) => x.userId !== userId)]);
+    };
+
+    const unblockUser: Ctx['unblockUser'] = async (userId) => {
+      const { error } = await sb.from('blocks').delete().eq('blocker_id', need()).eq('blocked_id', userId);
+      if (error) throw error;
+      setBlocked((b) => b.filter((x) => x.userId !== userId));
+    };
+
+    const report: Ctx['report'] = async (r) => {
+      const { error } = await sb.from('reports').insert({
+        reporter_id: need(), target: r.target, listing_id: r.listingId ?? null, listing_title: r.listingTitle ?? null,
+        reported_user_id: r.reportedUserId ?? null, reason: r.reason, details: r.details,
+      });
+      if (error) throw error;
+    };
+
+    const loadReports: Ctx['loadReports'] = async () => {
+      const { data, error } = await sb.from('reports').select('*').eq('status', 'open').order('created_at', { ascending: true }).limit(200);
+      if (error) throw error;
+      const ids = Array.from(new Set((data ?? []).flatMap((r) => [r.reporter_id, r.reported_user_id]).filter(Boolean)));
+      const { data: names } = ids.length ? await sb.from('profiles').select('id, name').in('id', ids) : { data: [] };
+      const byId = Object.fromEntries((names ?? []).map((n) => [n.id, n.name]));
+      return (data ?? []).map((r): Report => ({
+        id: r.id, target: r.target, listingId: r.listing_id ?? undefined, listingTitle: r.listing_title ?? undefined,
+        reportedUserId: r.reported_user_id ?? undefined, reportedName: byId[r.reported_user_id], reporterName: byId[r.reporter_id],
+        reason: r.reason, details: r.details ?? '', status: r.status, createdAt: +new Date(r.created_at),
+      }));
+    };
+
+    const resolveReport: Ctx['resolveReport'] = async (id) => {
+      const { error } = await sb.from('reports').update({ status: 'resolved' }).eq('id', id);
+      if (error) throw error;
+    };
+
+    const deleteAccount: Ctx['deleteAccount'] = async () => {
+      const id = need();
+      // صور المستخدم في التخزين تنحذف أولاً (أفضل جهد)، ثم الحساب وكل ما يتبعه في القاعدة
+      try {
+        const { data: files } = await sb.storage.from(BUCKET).list(id, { limit: 1000 });
+        if (files?.length) await sb.storage.from(BUCKET).remove(files.map((f) => `${id}/${f.name}`));
+      } catch {}
+      const { error } = await sb.rpc('delete_my_account');
+      if (error) return error.message.includes('ROOT') ? 'المشرف الأساسي ما يحذف حسابه من الموقع' : 'ما انحذف الحساب، حاول مرة ثانية';
+      await sb.auth.signOut();
+      return null;
+    };
+
     const signOut: Ctx['signOut'] = async () => {
       await sb.auth.signOut();
     };
@@ -450,17 +511,25 @@ export function CloudProvider({ children }: { children: React.ReactNode }) {
       return error ? authError(error.message) : null;
     };
 
-    return { setMe, addListing, removeListing, addOffer, setOfferStatus, withdrawOffer, refreshListing, loadBids, placeBid, loadMessages, sendMessage, peerName, requestEntry, requestAuctionFee, loadPendingFees, reviewFee, loadPendingEntries, reviewEntry, loadAdmins, addAdmin, removeAdmin, adminDeleteListing, toggleFav, signIn, signUp, signOut, resetPassword, updatePassword };
+    return { setMe, addListing, removeListing, addOffer, setOfferStatus, withdrawOffer, refreshListing, loadBids, placeBid, loadMessages, sendMessage, peerName, requestEntry, requestAuctionFee, loadPendingFees, reviewFee, loadPendingEntries, reviewEntry, loadAdmins, addAdmin, removeAdmin, adminDeleteListing, blockUser, unblockUser, report, loadReports, resolveReport, deleteAccount, toggleFav, signIn, signUp, signOut, resetPassword, updatePassword };
   }, [sb, uid, me, loadListings, loadPrivate]);
 
   const listings = useMemo(() => (uid ? all.filter((l) => l.ownerId === uid) : []), [all, uid]);
+  // إعلانات ومحادثات المحظورين ما تظهر لي
+  const blockedIds = useMemo(() => new Set(blocked.map((b) => b.userId)), [blocked]);
+  const visible = useMemo(() => (blockedIds.size ? all.filter((l) => !blockedIds.has(l.ownerId)) : all), [all, blockedIds]);
+  const heads = useMemo(() => {
+    if (!blockedIds.size) return chatHeads;
+    const owner = Object.fromEntries(all.map((l) => [l.id, l.ownerId]));
+    return Object.fromEntries(Object.entries(chatHeads).filter(([, h]) => !blockedIds.has(h.peerId) && !blockedIds.has(owner[h.listingId])));
+  }, [chatHeads, blockedIds, all]);
   const offersFor = useCallback((listingId: string) => offers.filter((o) => o.listingId === listingId), [offers]);
   const contactFor = useCallback((userId: string) => contacts[userId], [contacts]);
 
-  const { unread, markRead } = useChatSeen(chatHeads, uid ?? '');
+  const { unread, markRead } = useChatSeen(heads, uid ?? '');
 
   const value: Ctx = {
-    ...api, cloud: true, chatHeads, unread, markRead, authed: !!uid, email, ready, me, listings, all, offers, favs, toasts, toast, offersFor, contactFor, entries, fees, isAdmin, isRootAdmin,
+    ...api, cloud: true, chatHeads: heads, unread, markRead, blocked, authed: !!uid, email, ready, me, listings, all: visible, offers, favs, toasts, toast, offersFor, contactFor, entries, fees, isAdmin, isRootAdmin,
   };
   return <StoreCtx.Provider value={value}>{children}</StoreCtx.Provider>;
 }
