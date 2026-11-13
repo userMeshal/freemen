@@ -196,7 +196,8 @@ export function CloudProvider({ children }: { children: React.ReactNode }) {
         .insert({
           owner_id, title: l.title, category: l.category, condition: l.condition, city: l.city, description: l.description,
           wants: l.wants, open_to_offers: l.openToOffers, value_tier: l.valueTier, est_value: l.estValue ?? null, images,
-          kind: l.kind, price: l.price ?? null, min_increment: l.minIncrement ?? 10, ends_at: l.endsAt ? new Date(l.endsAt).toISOString() : null,
+          // أعمدة البيع والمزاد تنرسل لعروضها فقط، فيظل نشر عروض البدل شغّالاً على قاعدة لم تُحدَّث بعد
+          ...(l.kind === 'swap' ? {} : { kind: l.kind, price: l.price ?? null, min_increment: l.minIncrement ?? 10, ends_at: l.endsAt ? new Date(l.endsAt).toISOString() : null }),
         })
         .select(LISTING_COLS)
         .single();
@@ -219,7 +220,7 @@ export function CloudProvider({ children }: { children: React.ReactNode }) {
       const { data, error } = await sb
         .from('offers')
         .insert({
-          listing_id: o.listingId, from_id, kind: o.kind ?? 'swap', item_title: o.itemTitle || null, item_category: o.itemCategory || null,
+          listing_id: o.listingId, from_id, ...(o.kind === 'buy' ? { kind: 'buy' } : {}), item_title: o.itemTitle || null, item_category: o.itemCategory || null,
           item_condition: o.itemCondition || null, value_tier: o.valueTier, est_value: o.estValue ?? null, cash: o.cash ?? 0, note: o.note, image,
         })
         .select(OFFER_COLS)
