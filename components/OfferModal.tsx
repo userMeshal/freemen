@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { ImagePlus, X } from 'lucide-react';
-import { CATEGORIES, CONDITIONS, VALUE_TIERS, type Listing } from '@/lib/data';
+import { CATEGORIES, CONDITIONS, formatSAR, listingValue, parseAmount, tierOf, type Listing } from '@/lib/data';
 import { fileToDataUrl, useStore } from '@/lib/store';
 import { FairnessMeter } from './Fairness';
 
@@ -13,7 +13,10 @@ export default function OfferModal({ listing, onClose }: { listing: Listing; onC
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState(CATEGORIES[0].id);
   const [condition, setCondition] = useState(CONDITIONS[1]);
-  const [tier, setTier] = useState(listing.valueTier);
+  const [valueText, setValueText] = useState('');
+  const [cashText, setCashText] = useState('');
+  const value = parseAmount(valueText);
+  const cash = parseAmount(cashText);
   const [note, setNote] = useState('');
   const [name, setName] = useState(me.name);
   const [image, setImage] = useState<string>();
@@ -29,7 +32,7 @@ export default function OfferModal({ listing, onClose }: { listing: Listing; onC
     };
   }, [onClose]);
 
-  const valid = title.trim().length > 1 && name.trim().length > 1;
+  const valid = title.trim().length > 1 && name.trim().length > 1 && value > 0;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,7 +40,7 @@ export default function OfferModal({ listing, onClose }: { listing: Listing; onC
     setBusy(true);
     try {
       if (name.trim() !== me.name) await setMe({ name: name.trim() });
-      await addOffer({ listingId: listing.id, fromName: name.trim(), itemTitle: title.trim(), itemCategory: category, itemCondition: condition, valueTier: tier, note: note.trim(), image });
+      await addOffer({ listingId: listing.id, fromName: name.trim(), itemTitle: title.trim(), itemCategory: category, itemCondition: condition, valueTier: tierOf(value), estValue: value, cash, note: note.trim(), image });
       toast('انرسل عرض البدل');
       onClose();
     } catch {
@@ -74,7 +77,7 @@ export default function OfferModal({ listing, onClose }: { listing: Listing; onC
             <div className="chips chips-wrap">
               {listings.map((l) => (
                 <button type="button" key={l.id} className={`chip chip-btn ${title === l.title ? 'is-solid' : ''}`}
-                  onClick={() => { setTitle(l.title); setCategory(l.category); setCondition(l.condition); setTier(l.valueTier); setImage(l.images[0]); }}>
+                  onClick={() => { setTitle(l.title); setCategory(l.category); setCondition(l.condition); setValueText(String(listingValue(l))); setImage(l.images[0]); }}>
                   {l.title}
                 </button>
               ))}
@@ -102,13 +105,25 @@ export default function OfferModal({ listing, onClose }: { listing: Listing; onC
           </label>
         </div>
 
-        <label className="field">
-          <span className="label">القيمة التقريبية لغرضك (ريال)</span>
-          <select className="select" value={tier} onChange={(e) => setTier(Number(e.target.value))}>
-            {VALUE_TIERS.map((v, i) => <option key={v} value={i}>{v}</option>)}
-          </select>
-        </label>
-        <FairnessMeter a={listing.valueTier} b={tier} />
+        <div className="row">
+          <label className="field">
+            <span className="label">قيمة غرضك التقريبية (ريال)</span>
+            <input className="input" dir="ltr" inputMode="numeric" value={valueText} onChange={(e) => setValueText(e.target.value)} placeholder="مثال: 1800" required />
+          </label>
+          <label className="field">
+            <span className="label">تزيد مبلغ فوقه؟ (اختياري)</span>
+            <input className="input" dir="ltr" inputMode="numeric" value={cashText} onChange={(e) => setCashText(e.target.value)} placeholder="0" />
+          </label>
+        </div>
+        {value > 0 && (
+          <>
+            <p className="offer-total">
+              قيمة عرضك: <strong>{formatSAR(value + cash)}</strong>
+              {cash > 0 && <span> (غرض {formatSAR(value)} + مبلغ {formatSAR(cash)})</span>}
+            </p>
+            <FairnessMeter a={listingValue(listing)} b={value + cash} />
+          </>
+        )}
 
         <label className="field">
           <span className="label">رسالة لصاحب العرض (اختياري)</span>

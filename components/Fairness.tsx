@@ -7,7 +7,7 @@ import { fairness } from '@/lib/data';
 /** ميزان البدل: يقارن شريحتي القيمة ويميل ناحية الأثقل */
 export function FairnessMeter({ a, b }: { a: number; b: number }) {
   const f = fairness(a, b);
-  const tilt = Math.max(-2, Math.min(2, b - a)) * 7;
+  const tilt = a > 0 && b > 0 ? Math.max(-1.4, Math.min(1.4, Math.log2(b / a))) * 10 : 0;
   return (
     <div className={`fair fair-${f.level}`}>
       <div className="fair-scale" aria-hidden>
@@ -17,7 +17,7 @@ export function FairnessMeter({ a, b }: { a: number; b: number }) {
       </div>
       <div>
         <strong><Scale size={14} /> ميزان البدل: {f.label}</strong>
-        <small>مقارنة تقريبية بين قيمة الغرضين — القرار لكم.</small>
+        <small>مقارنة تقريبية بين قيمة غرضه وقيمة عرضك (الغرض + المبلغ) — القرار لكم.</small>
       </div>
     </div>
   );

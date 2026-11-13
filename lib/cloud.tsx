@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import type { Listing, Offer } from './data';
+import type { Bid, Entry, Listing, Offer } from './data';
 import { StoreCtx, useToasts, type Ctx, type Me } from './ctx';
 
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -18,12 +18,32 @@ const blankMe: Me = { id: '', name: '', city: 'الرياض', whatsapp: '' };
 
 const toListing = (r: any): Listing => ({
   id: r.id, title: r.title, category: r.category, condition: r.condition, city: r.city, description: r.description ?? '',
-  wants: r.wants ?? [], openToOffers: r.open_to_offers, valueTier: r.value_tier, images: r.images ?? [],
+  wants: r.wants ?? [], openToOffers: r.open_to_offers, valueTier: r.value_tier, estValue: r.est_value ?? undefined, images: r.images ?? [],
   ownerId: r.owner_id, ownerName: r.owner?.name ?? 'مستخدم', createdAt: +new Date(r.created_at), offersCount: r.offers_count ?? 0,
+  kind: r.kind ?? 'swap', price: r.price ?? undefined, minIncrement: r.min_increment ?? undefined,
+  endsAt: r.ends_at ? +new Date(r.ends_at) : undefined, currentBid: r.current_bid ?? undefined, topBidder: r.top_bidder ?? undefined, bidsCount: r.bids_count ?? 0,
 });
+const toEntry = (r: any): Entry => ({
+  id: r.id, listingId: r.listing_id, userId: r.user_id, userName: r.user?.name, listingTitle: r.listing?.title,
+  senderName: r.sender_name, reference: r.reference ?? '', status: r.status, createdAt: +new Date(r.created_at),
+});
+const toBid = (r: any): Bid => ({
+  id: r.id, listingId: r.listing_id, bidderId: r.bidder_id, bidderName: r.bidder?.name ?? 'مستخدم', amount: r.amount, createdAt: +new Date(r.created_at),
+});
+
+/** رسائل دالة المزايدة في القاعدة */
+function bidError(message: string) {
+  const low = message.match(/LOW:(\d+)/);
+  if (low) return `أقل مزايدة مقبولة ${Number(low[1]).toLocaleString('en-US')} ريال`;
+  if (message.includes('ENDED')) return 'انتهى المزاد';
+  if (message.includes('NO_ENTRY')) return 'لازم يتفعّل دخولك للمزاد أول';
+  if (message.includes('OWN')) return 'ما تقدر تزايد على مزادك';
+  if (message.includes('AUTH')) return 'سجّل دخولك أول';
+  return 'ما انحسبت المزايدة، حاول مرة ثانية';
+}
 const toOffer = (r: any): Offer => ({
-  id: r.id, listingId: r.listing_id, fromId: r.from_id, fromName: r.sender?.name ?? 'مستخدم', itemTitle: r.item_title,
-  itemCategory: r.item_category, itemCondition: r.item_condition, valueTier: r.value_tier, note: r.note ?? '',
+  id: r.id, kind: r.kind ?? 'swap', listingId: r.listing_id, fromId: r.from_id, fromName: r.sender?.name ?? 'مستخدم', itemTitle: r.item_title ?? '',
+  itemCategory: r.item_category ?? '', itemCondition: r.item_condition ?? '', valueTier: r.value_tier, estValue: r.est_value ?? undefined, cash: r.cash ?? 0, note: r.note ?? '',
   image: r.image ?? undefined, status: r.status, createdAt: +new Date(r.created_at),
 });
 
@@ -32,11 +52,13 @@ const OFFER_COLS = '*, sender:profiles(name)';
 
 function authError(message: string) {
   const m = message.toLowerCase();
+  if (m.includes('rate limit')) return 'محاولات كثيرة — انتظر شوي وحاول مرة ثانية';
   if (m.includes('invalid login')) return 'الإيميل أو كلمة المرور غلط';
   if (m.includes('already registered') || m.includes('already been registered')) return 'هذا الإيميل مسجّل من قبل — جرّب تسجيل الدخول';
+  if (m.includes('different from the old')) return 'اختر كلمة مرور غير القديمة';
+  if (m.includes('session')) return 'انتهت صلاحية الرابط — اطلب رابط جديد';
   if (m.includes('password')) return 'كلمة المرور لازم تكون 6 أحرف أو أكثر';
   if (m.includes('email not confirmed')) return 'فعّل حسابك من الرابط اللي وصلك على الإيميل';
-  if (m.includes('rate limit')) return 'محاولات كثيرة — انتظر شوي وحاول مرة ثانية';
   if (m.includes('invalid') && m.includes('email')) return 'صيغة الإيميل مو صحيحة';
   return 'صار خطأ، حاول مرة ثانية';
 }
@@ -50,6 +72,8 @@ export function CloudProvider({ children }: { children: React.ReactNode }) {
   const [all, setAll] = useState<Listing[]>([]);
   const [offers, setOffers] = useState<Offer[]>([]);
   const [contacts, setContacts] = useState<Record<string, string>>({});
+  const [entries, setEntries] = useState<Entry[]>([]);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [favs, setFavs] = useState<string[]>([]);
   const [ready, setReady] = useState(false);
 
@@ -60,10 +84,15 @@ export function CloudProvider({ children }: { children: React.ReactNode }) {
 
   /** العروض وأرقام التواصل — قواعد الأمان في القاعدة ترجّع فقط اللي يخصّني */
   const loadPrivate = useCallback(async () => {
-    const [o, c] = await Promise.all([
+    const { data: auth } = await sb.auth.getSession();
+    const self = auth.session?.user.id;
+    if (!self) return;
+    const [o, c, e] = await Promise.all([
       sb.from('offers').select(OFFER_COLS).order('created_at', { ascending: false }),
       sb.from('contacts').select('user_id, whatsapp'),
+      sb.from('auction_entries').select('*').eq('user_id', self).order('created_at', { ascending: false }),
     ]);
+    if (e.data) setEntries(e.data.map(toEntry));
     if (o.data) setOffers(o.data.map(toOffer));
     if (c.data) setContacts(Object.fromEntries(c.data.filter((x) => x.whatsapp).map((x) => [x.user_id, x.whatsapp])));
   }, [sb]);
@@ -98,6 +127,8 @@ export function CloudProvider({ children }: { children: React.ReactNode }) {
       setMeState(blankMe);
       setOffers([]);
       setContacts({});
+      setEntries([]);
+      setIsAdmin(false);
       return;
     }
     let alive = true;
@@ -109,6 +140,7 @@ export function CloudProvider({ children }: { children: React.ReactNode }) {
       if (alive) setMeState({ id: uid, name: p.data?.name ?? '', city: p.data?.city ?? 'الرياض', whatsapp: c.data?.whatsapp ?? '' });
     })();
     loadPrivate();
+    sb.rpc('is_admin').then(({ data }) => alive && setIsAdmin(data === true));
     const channel = sb
       .channel(`offers-${uid}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'offers' }, (payload) => {
@@ -117,6 +149,12 @@ export function CloudProvider({ children }: { children: React.ReactNode }) {
         const row = payload.new as { from_id?: string; status?: string } | null;
         if (payload.eventType === 'INSERT' && row?.from_id !== uid) toast('وصلك عرض بدل جديد');
         if (payload.eventType === 'UPDATE' && row?.from_id === uid && row?.status === 'accepted') toast('انقبل عرضك! شوف صفحة عروضي');
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'auction_entries' }, (payload) => {
+        loadPrivate();
+        const row = payload.new as { user_id?: string; status?: string } | null;
+        if (row?.user_id === uid && row.status === 'approved') toast('تفعّل دخولك للمزاد — تقدر تزايد الحين');
+        if (row?.user_id === uid && row.status === 'rejected') toast('ما قدرنا نتحقق من تحويلك — شوف صفحة المزاد');
       })
       .subscribe();
     return () => {
@@ -157,7 +195,9 @@ export function CloudProvider({ children }: { children: React.ReactNode }) {
         .from('listings')
         .insert({
           owner_id, title: l.title, category: l.category, condition: l.condition, city: l.city, description: l.description,
-          wants: l.wants, open_to_offers: l.openToOffers, value_tier: l.valueTier, images,
+          wants: l.wants, open_to_offers: l.openToOffers, value_tier: l.valueTier, est_value: l.estValue ?? null, images,
+          // أعمدة البيع والمزاد تنرسل لعروضها فقط، فيظل نشر عروض البدل شغّالاً على قاعدة لم تُحدَّث بعد
+          ...(l.kind === 'swap' ? {} : { kind: l.kind, price: l.price ?? null, min_increment: l.minIncrement ?? 10, ends_at: l.endsAt ? new Date(l.endsAt).toISOString() : null }),
         })
         .select(LISTING_COLS)
         .single();
@@ -180,8 +220,8 @@ export function CloudProvider({ children }: { children: React.ReactNode }) {
       const { data, error } = await sb
         .from('offers')
         .insert({
-          listing_id: o.listingId, from_id, item_title: o.itemTitle, item_category: o.itemCategory,
-          item_condition: o.itemCondition, value_tier: o.valueTier, note: o.note, image,
+          listing_id: o.listingId, from_id, ...(o.kind === 'buy' ? { kind: 'buy' } : {}), item_title: o.itemTitle || null, item_category: o.itemCategory || null,
+          item_condition: o.itemCondition || null, value_tier: o.valueTier, est_value: o.estValue ?? null, cash: o.cash ?? 0, note: o.note, image,
         })
         .select(OFFER_COLS)
         .single();
@@ -194,6 +234,59 @@ export function CloudProvider({ children }: { children: React.ReactNode }) {
       setOffers((prev) => prev.map((o) => (o.id === id ? { ...o, status } : o)));
       const { error } = await sb.from('offers').update({ status }).eq('id', id);
       await loadPrivate();
+      if (error) throw error;
+    };
+
+    const withdrawOffer: Ctx['withdrawOffer'] = async (id) => {
+      const { error } = await sb.from('offers').delete().eq('id', id).eq('status', 'pending');
+      if (error) throw error;
+      setOffers((prev) => prev.filter((o) => o.id !== id));
+      loadListings();
+    };
+
+    const refreshListing: Ctx['refreshListing'] = async (id) => {
+      const { data } = await sb.from('listings').select(LISTING_COLS).eq('id', id).maybeSingle();
+      if (data) setAll((a) => a.map((l) => (l.id === id ? toListing(data) : l)));
+      // بعد انتهاء المزاد ينكشف رقم التواصل بين صاحبه والفائز
+      if (uid && data?.ends_at && +new Date(data.ends_at) <= Date.now()) loadPrivate();
+    };
+
+    const loadBids: Ctx['loadBids'] = async (listingId) => {
+      const { data } = await sb.from('bids').select('*, bidder:profiles(name)').eq('listing_id', listingId).order('amount', { ascending: false }).limit(50);
+      return (data ?? []).map(toBid);
+    };
+
+    const placeBid: Ctx['placeBid'] = async (listingId, amount) => {
+      if (!uid) return bidError('AUTH');
+      const { data, error } = await sb.rpc('place_bid', { p_listing: listingId, p_amount: amount });
+      if (error) return bidError(error.message);
+      const row = Array.isArray(data) ? data[0] : data;
+      if (row) setAll((a) => a.map((l) => (l.id === listingId ? { ...toListing(row), ownerName: l.ownerName } : l)));
+      return null;
+    };
+
+    const requestEntry: Ctx['requestEntry'] = async (listingId, senderName, reference) => {
+      const user_id = need();
+      // طلب مرفوض أو معلّق سابق ينحذف وينرسل من جديد
+      await sb.from('auction_entries').delete().eq('listing_id', listingId).eq('user_id', user_id).neq('status', 'approved');
+      const { error } = await sb.from('auction_entries').insert({ listing_id: listingId, user_id, sender_name: senderName, reference });
+      if (error) throw error;
+      await loadPrivate();
+    };
+
+    const loadPendingEntries: Ctx['loadPendingEntries'] = async () => {
+      const { data, error } = await sb
+        .from('auction_entries')
+        .select('*, user:profiles(name), listing:listings(title)')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: true })
+        .limit(200);
+      if (error) throw error;
+      return (data ?? []).map(toEntry);
+    };
+
+    const reviewEntry: Ctx['reviewEntry'] = async (id, status) => {
+      const { error } = await sb.from('auction_entries').update({ status }).eq('id', id);
       if (error) throw error;
     };
 
@@ -221,7 +314,17 @@ export function CloudProvider({ children }: { children: React.ReactNode }) {
       await sb.auth.signOut();
     };
 
-    return { setMe, addListing, removeListing, addOffer, setOfferStatus, toggleFav, signIn, signUp, signOut };
+    const resetPassword: Ctx['resetPassword'] = async (mail) => {
+      const { error } = await sb.auth.resetPasswordForEmail(mail.trim(), { redirectTo: `${window.location.origin}/reset` });
+      return error ? authError(error.message) : null;
+    };
+
+    const updatePassword: Ctx['updatePassword'] = async (password) => {
+      const { error } = await sb.auth.updateUser({ password });
+      return error ? authError(error.message) : null;
+    };
+
+    return { setMe, addListing, removeListing, addOffer, setOfferStatus, withdrawOffer, refreshListing, loadBids, placeBid, requestEntry, loadPendingEntries, reviewEntry, toggleFav, signIn, signUp, signOut, resetPassword, updatePassword };
   }, [sb, uid, me, loadListings, loadPrivate]);
 
   const listings = useMemo(() => (uid ? all.filter((l) => l.ownerId === uid) : []), [all, uid]);
@@ -229,7 +332,7 @@ export function CloudProvider({ children }: { children: React.ReactNode }) {
   const contactFor = useCallback((userId: string) => contacts[userId], [contacts]);
 
   const value: Ctx = {
-    ...api, cloud: true, authed: !!uid, email, ready, me, listings, all, offers, favs, toasts, toast, offersFor, contactFor,
+    ...api, cloud: true, authed: !!uid, email, ready, me, listings, all, offers, favs, toasts, toast, offersFor, contactFor, entries, isAdmin,
   };
   return <StoreCtx.Provider value={value}>{children}</StoreCtx.Provider>;
 }

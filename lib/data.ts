@@ -31,8 +31,26 @@ export const VALUE_TIERS = [
   'أكثر من 15,000',
 ];
 
+export type Kind = 'swap' | 'sale' | 'auction';
+
+export const KINDS: { id: Kind; name: string; verb: string }[] = [
+  { id: 'swap', name: 'بدل', verb: 'بدّل' },
+  { id: 'sale', name: 'بيع', verb: 'بِع' },
+  { id: 'auction', name: 'مزاد', verb: 'زاوِد' },
+];
+
 export type Listing = {
   id: string;
+  /** بدل / بيع بسعر ثابت / مزاد */
+  kind: Kind;
+  /** سعر البيع، أو سعر بداية المزاد */
+  price?: number;
+  minIncrement?: number;
+  /** نهاية المزاد */
+  endsAt?: number;
+  currentBid?: number;
+  topBidder?: string;
+  bidsCount?: number;
   title: string;
   category: string;
   condition: string;
@@ -41,6 +59,8 @@ export type Listing = {
   wants: string[];
   openToOffers: boolean;
   valueTier: number;
+  /** القيمة التقريبية بالريال (العروض القديمة فيها الشريحة فقط) */
+  estValue?: number;
   images: string[];
   ownerId: string;
   ownerName: string;
@@ -51,8 +71,26 @@ export type Listing = {
   offersCount?: number;
 };
 
+export type Bid = { id: string; listingId: string; bidderId: string; bidderName: string; amount: number; createdAt: number };
+
+/** طلب دخول مزاد: المستخدم يحوّل الرسم بنكياً والمشرف يتحقق ويفعّل */
+export type Entry = {
+  id: string;
+  listingId: string;
+  userId: string;
+  userName?: string;
+  listingTitle?: string;
+  senderName: string;
+  reference: string;
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: number;
+  demo?: boolean;
+};
+
 export type Offer = {
   id: string;
+  /** عرض بدل (غرض ± مبلغ) أو عرض شراء (مبلغ فقط) */
+  kind?: 'swap' | 'buy';
   listingId: string;
   fromId: string;
   fromName: string;
@@ -60,6 +98,10 @@ export type Offer = {
   itemCategory: string;
   itemCondition: string;
   valueTier: number;
+  /** قيمة الغرض المعروض بالريال */
+  estValue?: number;
+  /** مبلغ نقدي يضيفه صاحب العرض فوق غرضه */
+  cash?: number;
   note: string;
   image?: string;
   status: 'pending' | 'accepted' | 'rejected';
@@ -74,7 +116,7 @@ const s = (
   wants: string[], ownerName: string, hoursAgo: number, seedOffers: number, description: string,
   openToOffers = true,
 ): Listing => ({
-  id: `s${n}`, title, category, condition, city, valueTier, wants, ownerName, description, openToOffers,
+  id: `s${n}`, kind: 'swap', title, category, condition, city, valueTier, wants, ownerName, description, openToOffers,
   images: [], ownerId: `seed-${n}`, createdAt: T0 - hoursAgo * H, seedOffers,
 });
 
@@ -113,6 +155,40 @@ export const SEED: Listing[] = [
     'M2، مع القلم والكيبورد. للدراسة والرسم.'),
 ];
 
+/** عروض بيع ومزادات نموذجية للوضع التجريبي */
+const extra = (base: Listing, patch: Partial<Listing>): Listing => ({ ...base, wants: [], openToOffers: false, ...patch });
+SEED.splice(
+  2, 0,
+  extra(s(17, 'ثلاجة سامسونج 18 قدم', 'furniture', 'مستعمل نظيف', 'الرياض', 2, [], 'أبو فيصل', 3, 4, 'ثلاجة بابين، شغّالة تمام، السبب الانتقال لبيت جديد.'), { kind: 'sale', price: 1400 }),
+  extra(s(18, 'رولكس ديت جست 36', 'fashion', 'مستعمل نظيف', 'جدة', 4, [], 'هاني', 6, 0, 'موديل 2019 مع العلبة والضمان. المزاد يبدأ من سعر رمزي.'), {
+    kind: 'auction', price: 15000, minIncrement: 500, endsAt: T0 + 26 * H, currentBid: 21500, bidsCount: 9, topBidder: 'seed-bidder-1',
+  }),
+  extra(s(19, 'بلايستيشن 5 برو', 'gaming', 'جديد', 'الدمام', 2, [], 'مهند', 8, 0, 'جديد بالكرتون ما انفتح.'), {
+    kind: 'auction', price: 1000, minIncrement: 50, endsAt: T0 + 5 * H, currentBid: 1850, bidsCount: 14, topBidder: 'seed-bidder-2',
+  }),
+  extra(s(20, 'آيباد اير M2 مع القلم', 'electronics', 'شبه جديد', 'مكة المكرمة', 2, [], 'ريما', 11, 2, 'استخدام ثلاث شهور، مع القلم والحافظة.'), { kind: 'sale', price: 2100 }),
+  extra(s(21, 'لوحة خط عربي أصلية', 'collectibles', 'جديد', 'المدينة المنورة', 2, [], 'الخطاط سالم', 15, 0, 'لوحة بخط الثلث، حبر على ورق مقهّر، مقاس 70×50.'), {
+    kind: 'auction', price: 500, minIncrement: 50, endsAt: T0 + 50 * H, bidsCount: 0,
+  }),
+);
+
+/** الوقت المتبقي للمزاد بصيغة قصيرة */
+export function timeLeft(endsAt: number, now = Date.now()) {
+  const ms = endsAt - now;
+  if (ms <= 0) return 'انتهى';
+  const s = Math.floor(ms / 1000), d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
+  if (d > 0) return `${d} يوم ${h} س`;
+  if (h > 0) return `${h} س ${m} د`;
+  if (m > 0) return `${m} د ${s % 60} ث`;
+  return `${s} ث`;
+}
+
+export const auctionEnded = (l: Pick<Listing, 'endsAt'>, now = Date.now()) => !!l.endsAt && l.endsAt <= now;
+
+/** أقل مزايدة مقبولة الآن */
+export const minNextBid = (l: Pick<Listing, 'price' | 'currentBid' | 'minIncrement'>) =>
+  l.currentBid == null ? l.price ?? 1 : l.currentBid + (l.minIncrement ?? 10);
+
 export const catById = (id: string) => CATEGORIES.find((c) => c.id === id) ?? CATEGORIES[0];
 
 export function timeAgo(ts: number) {
@@ -126,9 +202,33 @@ export function timeAgo(ts: number) {
   return d === 1 ? 'أمس' : `قبل ${d} يوم`;
 }
 
-export function fairness(a: number, b: number) {
-  const d = Math.abs(a - b);
-  if (d === 0) return { label: 'قيمة متقاربة', level: 2 };
-  if (d === 1) return { label: 'فرق بسيط', level: 1 };
+const TIER_MID = [250, 1000, 3000, 10000, 20000];
+const TIER_MAX = [500, 1500, 5000, 15000];
+
+/** الشريحة المقابلة لقيمة بالريال */
+export const tierOf = (value: number) => {
+  const i = TIER_MAX.findIndex((max) => value < max);
+  return i === -1 ? 4 : i;
+};
+
+export const listingValue = (l: Pick<Listing, 'estValue' | 'valueTier' | 'price'>) => l.estValue ?? l.price ?? TIER_MID[l.valueTier] ?? TIER_MID[1];
+
+/** قيمة عرض البدل كاملة = قيمة الغرض + المبلغ المضاف */
+export const offerValue = (o: Pick<Offer, 'estValue' | 'valueTier' | 'cash'>) =>
+  (o.estValue ?? TIER_MID[o.valueTier] ?? TIER_MID[1]) + (o.cash ?? 0);
+
+export const formatSAR = (n: number) => `${Math.round(n).toLocaleString('en-US')} ريال`;
+
+/** يقرأ رقم من حقل نصي — يقبل الأرقام العربية والفواصل */
+export function parseAmount(text: string) {
+  const digits = text.replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))).replace(/[^\d]/g, '');
+  return digits ? Math.min(Number(digits), 10_000_000) : 0;
+}
+
+/** يقارن قيمة الغرض المعروض (target) بقيمة عرض البدل (offered) */
+export function fairness(target: number, offered: number) {
+  const r = target > 0 ? offered / target : 1;
+  if (r >= 0.75 && r <= 1.34) return { label: 'قيمة متقاربة', level: 2 };
+  if (r >= 0.5 && r <= 2) return { label: 'فرق بسيط', level: 1 };
   return { label: 'فرق كبير بالقيمة', level: 0 };
 }

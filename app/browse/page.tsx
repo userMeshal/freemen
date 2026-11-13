@@ -1,11 +1,11 @@
 'use client';
 
-import { Suspense, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Search, SearchX } from 'lucide-react';
 import { CategoryIcon, ListingCard } from '@/components/ui';
-import { CATEGORIES, CITIES } from '@/lib/data';
+import { CATEGORIES, CITIES, KINDS } from '@/lib/data';
 import { useStore } from '@/lib/store';
 
 function Browse() {
@@ -14,23 +14,37 @@ function Browse() {
   const [q, setQ] = useState(params.get('q') ?? '');
   const [cat, setCat] = useState(params.get('cat') ?? 'all');
   const [city, setCity] = useState('all');
+  const [kind, setKind] = useState(params.get('kind') ?? 'all');
+
+  const urlKind = params.get('kind');
+  useEffect(() => setKind(urlKind ?? 'all'), [urlKind]);
 
   const list = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return all.filter(
       (l) =>
+        (kind === 'all' || l.kind === kind) &&
         (cat === 'all' || l.category === cat) &&
         (city === 'all' || l.city === city) &&
         (!needle || [l.title, l.description, ...l.wants].join(' ').toLowerCase().includes(needle)),
     );
-  }, [all, q, cat, city]);
+  }, [all, q, cat, city, kind]);
 
   return (
     <div className="container page">
       <header className="page-head">
         <span className="eyebrow">تصفّح</span>
-        <h1 className="h2">وش ودّك تبدّل اليوم؟</h1>
+        <h1 className="h2">{kind === 'auction' ? 'المزادات' : kind === 'sale' ? 'للبيع' : kind === 'swap' ? 'للبدل' : 'وش تدوّر عليه اليوم؟'}</h1>
       </header>
+
+      <div className="tabs kind-tabs" role="tablist" aria-label="نوع العرض">
+        {[{ id: 'all', name: 'الكل' }, ...KINDS].map((k) => (
+          <button key={k.id} role="tab" aria-selected={kind === k.id} className={`tab ${kind === k.id ? 'is-on' : ''}`} onClick={() => setKind(k.id)}>
+            {kind === k.id && <motion.span layoutId="kind-bg" className="tab-bg" transition={{ type: 'spring', stiffness: 400, damping: 32 }} />}
+            <span className="chip-in">{k.name}</span>
+          </button>
+        ))}
+      </div>
 
       <div className="filters">
         <label className="search">
@@ -65,7 +79,7 @@ function Browse() {
           <SearchX size={36} strokeWidth={1.3} />
           <h3>ما لقينا شي بهالمواصفات</h3>
           <p>جرّب قسم ثاني أو امسح البحث.</p>
-          <button className="btn btn-ghost" onClick={() => { setQ(''); setCat('all'); setCity('all'); }}>امسح الفلاتر</button>
+          <button className="btn btn-ghost" onClick={() => { setQ(''); setCat('all'); setCity('all'); setKind('all'); }}>امسح الفلاتر</button>
         </motion.div>
       )}
     </div>

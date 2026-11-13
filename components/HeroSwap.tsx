@@ -109,7 +109,7 @@ export default function HeroSwap() {
             exit={{ opacity: 0, scale: 0.9 }}
             transition={{ delay: 0.9, type: 'spring', stiffness: 400, damping: 22 }}
           >
-            <span className="swap-check"><Check size={13} strokeWidth={3} /></span> تم البدل — بدون ولا ريال
+            <span className="swap-check"><Check size={13} strokeWidth={3} /></span> تم البدل — غرض بغرض
           </motion.div>
         )}
       </AnimatePresence>

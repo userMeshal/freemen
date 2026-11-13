@@ -4,10 +4,10 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, animate, motion, useInView } from 'framer-motion';
 import {
-  Baby, Bike, BookOpen, Camera, Car, Gamepad2, Gem, Heart, Laptop, MapPin, Repeat2, Smartphone, Sofa, Watch, Wrench,
+  Baby, Bike, BookOpen, Camera, Car, Clock, Gamepad2, Gavel, Gem, Heart, Laptop, MapPin, Repeat2, Smartphone, Sofa, Tag, Watch, Wrench,
   type LucideIcon,
 } from 'lucide-react';
-import { catById, timeAgo, type Listing } from '@/lib/data';
+import { auctionEnded, catById, formatSAR, timeAgo, timeLeft, type Listing } from '@/lib/data';
 import { useStore } from '@/lib/store';
 
 export const EASE = [0.22, 1, 0.36, 1] as const;
@@ -22,7 +22,7 @@ export function CategoryIcon({ id, size = 20, strokeWidth = 1.6 }: { id: string;
   return <Icon size={size} strokeWidth={strokeWidth} aria-hidden />;
 }
 
-/** شعار بدلني: دائرة مقسومة نصفين يتبادلون الاتجاه — الملفات الأصلية في public/brand */
+/** شعار تليته: دائرة مقسومة نصفين يتبادلون الاتجاه — الملفات الأصلية في public/brand */
 export function Logo({ size = 30 }: { size?: number }) {
   return (
     <span className="logo">
@@ -33,7 +33,7 @@ export function Logo({ size = 30 }: { size?: number }) {
           <path className="logo-bot" d="M4.67 17.495A7.99 7.99 0 0 0 20.66 17.495Z" />
         </g>
       </svg>
-      <span className="logo-word">بدلني</span>
+      <span className="logo-word">تليته</span>
     </span>
   );
 }
@@ -79,6 +79,9 @@ export function ListingCard({ listing, index = 0 }: { listing: Listing; index?: 
         <div className="card-media">
           <ListingArt listing={listing} />
           <span className="chip chip-glass card-cond">{listing.condition}</span>
+          {listing.kind !== 'swap' && (
+            <span className={`chip card-kind kind-${listing.kind}`}>{listing.kind === 'auction' ? <><Gavel size={13} /> مزاد</> : <><Tag size={13} /> بيع</>}</span>
+          )}
         </div>
         <div className="card-body">
           <div className="card-meta">
@@ -86,13 +89,24 @@ export function ListingCard({ listing, index = 0 }: { listing: Listing; index?: 
             <span suppressHydrationWarning>{timeAgo(listing.createdAt)}</span>
           </div>
           <h3 className="card-title">{listing.title}</h3>
-          <div className="card-wants">
-            <Repeat2 size={15} />
-            <span>{listing.wants.length ? listing.wants.join(' · ') : 'يستقبل كل العروض'}</span>
-          </div>
+          {listing.kind === 'swap' ? (
+            <div className="card-wants">
+              <Repeat2 size={15} />
+              <span>{listing.wants.length ? listing.wants.join(' · ') : 'يستقبل كل العروض'}</span>
+            </div>
+          ) : (
+            <div className="card-price">
+              <strong>{formatSAR(listing.kind === 'auction' ? listing.currentBid ?? listing.price ?? 0 : listing.price ?? 0)}</strong>
+              {listing.kind === 'auction' && <small>{listing.currentBid ? 'أعلى مزايدة' : 'سعر البداية'}</small>}
+            </div>
+          )}
           <div className="card-foot">
-            <span className="card-count">{count ? `${count} عرض بدل` : 'كن أول من يعرض'}</span>
-            <span className="card-go">اعرض بدلك ←</span>
+            {listing.kind === 'auction' ? (
+              <span className="card-count" suppressHydrationWarning><Clock size={13} /> {auctionEnded(listing) ? 'انتهى المزاد' : `باقي ${timeLeft(listing.endsAt ?? 0)}`} · {listing.bidsCount ?? 0} مزايدة</span>
+            ) : (
+              <span className="card-count">{count ? `${count} ${listing.kind === 'sale' ? 'طلب شراء' : 'عرض بدل'}` : 'كن أول من يعرض'}</span>
+            )}
+            <span className="card-go">{listing.kind === 'auction' ? 'ادخل المزاد ←' : listing.kind === 'sale' ? 'اطلب الشراء ←' : 'اعرض بدلك ←'}</span>
           </div>
         </div>
       </Link>
