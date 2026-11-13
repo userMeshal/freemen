@@ -136,6 +136,7 @@ function Footer() {
           <Link href="/policies/cancellation">الإلغاء والاسترجاع</Link>
           <Link href="/policies/safety">الحماية والأمان</Link>
           <Link href="/policies/prohibited">الأغراض الممنوعة</Link>
+          <Link href="/support">الدعم والتواصل</Link>
         </div>
         <div className="footer-col">
           <h4>بدل بأمان</h4>

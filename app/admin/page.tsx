@@ -5,13 +5,14 @@ import { useCallback, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Check, RefreshCw, Search, ShieldCheck, Trash2, UserPlus, X } from 'lucide-react';
 import { ListingArt } from '@/components/ui';
-import { KINDS, formatSAR, timeAgo, type Admin, type Entry, type Fee, type Listing } from '@/lib/data';
+import { KINDS, formatSAR, timeAgo, REPORT_REASONS, type Admin, type Entry, type Fee, type Listing, type Report } from '@/lib/data';
 import { SITE } from '@/lib/site';
 import { useStore } from '@/lib/store';
 
 /** لوحة المشرف: تحويلات المزادات، حذف الإعلانات المخالفة، وإدارة المشرفين (للمشرف الأساسي) */
 export default function AdminPage() {
-  const { ready, isAdmin, isRootAdmin, all, me, loadPendingEntries, reviewEntry, loadPendingFees, reviewFee, loadAdmins, addAdmin, removeAdmin, adminDeleteListing, toast } = useStore();
+  const { ready, isAdmin, isRootAdmin, all, me, loadPendingEntries, reviewEntry, loadPendingFees, reviewFee, loadAdmins, addAdmin, removeAdmin, adminDeleteListing, loadReports, resolveReport, toast } = useStore();
+  const [reports, setReports] = useState<Report[] | null>(null);
   const [admins, setAdmins] = useState<Admin[] | null>(null);
   const [mail, setMail] = useState('');
   const [q, setQ] = useState('');
@@ -24,7 +25,20 @@ export default function AdminPage() {
   const load = useCallback(() => {
     loadPendingEntries().then(setList).catch(() => toast('ما قدرنا نحمّل الطلبات'));
     loadPendingFees().then(setFees).catch(() => toast('ما قدرنا نحمّل رسوم المزادات'));
-  }, [loadPendingEntries, loadPendingFees, toast]);
+    loadReports().then(setReports).catch(() => setReports([]));
+  }, [loadPendingEntries, loadPendingFees, loadReports, toast]);
+
+  const closeReport = async (id: string) => {
+    setBusy(id);
+    try {
+      await resolveReport(id);
+      setReports((l) => (l ?? []).filter((r) => r.id !== id));
+      toast('انقفل البلاغ');
+    } catch {
+      toast('ما انحفظ، حاول مرة ثانية');
+    }
+    setBusy('');
+  };
 
   const decideFee = async (listingId: string, approve: boolean) => {
     setBusy(listingId);
@@ -125,6 +139,39 @@ export default function AdminPage() {
       <p className="lead admin-lead">
         طابق كل طلب مع كشف حسابك البنكي بالاسم والمبلغ، وفعّل بعد ما تتأكد من وصول المبلغ فقط. طلبات الدخول مستعجلة: المزايد ما يقدر يزايد لين تفعّله.
       </p>
+
+      <h2 className="h3 admin-h">البلاغات{reports?.length ? ` — ${reports.length}` : ''}</h2>
+      {reports === null ? <div className="skeleton admin-skel" /> : reports.length === 0 ? (
+        <p className="hint admin-none">ما فيه بلاغات مفتوحة.</p>
+      ) : (
+        <AnimatePresence initial={false}>
+          {reports.map((r) => {
+            const l = r.listingId ? all.find((x) => x.id === r.listingId) : undefined;
+            return (
+              <motion.div layout key={r.id} className="offer" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: 40 }}>
+                <div className="offer-main">
+                  <div className="offer-top">
+                    <strong>{REPORT_REASONS.find((x) => x.id === r.reason)?.label}</strong>
+                    <span className="status">{r.target === 'user' ? 'عن مستخدم' : 'عن إعلان'}</span>
+                  </div>
+                  <div className="offer-sub">
+                    {r.target === 'user' && <span>المبلَّغ عنه: {r.reportedName ?? 'حساب محذوف'}</span>}
+                    {r.listingId && (l ? <Link href={`/listing/${l.id}`}>الإعلان: {l.title}</Link> : <span>الإعلان: {r.listingTitle ?? '—'} (محذوف)</span>)}
+                    {r.target === 'listing' && r.reportedName && <span>صاحبه: {r.reportedName}</span>}
+                    <span>المبلِّغ: {r.reporterName ?? 'حساب محذوف'}</span>
+                    <span suppressHydrationWarning>{timeAgo(r.createdAt)}</span>
+                  </div>
+                  {r.details && <p className="offer-note">«{r.details}»</p>}
+                  <div className="offer-actions">
+                    {l && <button className="btn btn-ghost btn-sm admin-del" onClick={() => { setDoomed(l); setReason(REPORT_REASONS.find((x) => x.id === r.reason)?.label ?? ''); }}><Trash2 size={15} /> احذف الإعلان</button>}
+                    <button className="btn btn-primary btn-sm" disabled={busy === r.id} onClick={() => closeReport(r.id)}><Check size={15} /> تمت المراجعة</button>
+                  </div>
+                </div>
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
+      )}
 
       <h2 className="h3 admin-h">رسوم عرض المزادات — {formatSAR(SITE.listingFee)}</h2>
       {fees === null ? <div className="skeleton" /> : fees.length === 0 ? (

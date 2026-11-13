@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Gavel, Heart, Inbox, LogOut, MessagesSquare, Plus, Send } from 'lucide-react';
+import { Gavel, Heart, Inbox, LogOut, MessagesSquare, Plus, Send, Trash2, X } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import OfferRow from '@/components/OfferRow';
 import { ListingArt, ListingCard } from '@/components/ui';
 import { auctionEnded, auctionStatus, formatSAR, timeAgo } from '@/lib/data';
@@ -17,7 +18,20 @@ const TABS = [
 ] as const;
 
 export default function OffersPage() {
-  const { listings, offers, all, favs, me, ready, cloud, authed, email, signOut, entries, chatHeads, unread } = useStore();
+  const { listings, offers, all, favs, me, ready, cloud, authed, email, signOut, entries, chatHeads, unread, blocked, unblockUser, deleteAccount, toast } = useStore();
+  const router = useRouter();
+  const [deleting, setDeleting] = useState(false);
+  const [confirm, setConfirm] = useState('');
+  const [busy, setBusy] = useState(false);
+  const removeAccount = async () => {
+    setBusy(true);
+    const err = await deleteAccount();
+    setBusy(false);
+    if (err) return toast(err);
+    setDeleting(false);
+    toast('انحذف حسابك');
+    router.push('/');
+  };
   const threads = Object.values(chatHeads).sort((a, b) => b.lastAt - a.lastAt);
   const [tab, setTab] = useState<(typeof TABS)[number]['id']>('in');
   const sent = offers.filter((o) => o.fromId === me.id);
@@ -155,6 +169,56 @@ export default function OffersPage() {
         </motion.div>
       </AnimatePresence>
       {!ready && <div className="skeleton" />}
+
+      {ready && (
+        <section className="account" aria-label="إعدادات الحساب">
+          <h2>الحساب</h2>
+          {blocked.length > 0 && (
+            <>
+              <span className="label">المحظورون</span>
+              {blocked.map((b) => (
+                <div key={b.userId} className="account-row">
+                  <strong>{b.name}</strong>
+                  <button className="btn btn-ghost btn-sm" onClick={() => unblockUser(b.userId).then(() => toast(`انفك الحظر عن ${b.name}`)).catch(() => toast('ما انفك الحظر، حاول مرة ثانية'))}>فك الحظر</button>
+                </div>
+              ))}
+            </>
+          )}
+          <div className="account-danger">
+            <strong>حذف الحساب</strong>
+            <p>يحذف حسابك نهائياً مع إعلاناتك وعروضك ومحادثاتك. ما ينرجع بعد الحذف.</p>
+            <button className="btn btn-ghost btn-sm" onClick={() => { setConfirm(''); setDeleting(true); }}><Trash2 size={15} /> احذف حسابي</button>
+          </div>
+        </section>
+      )}
+
+      <AnimatePresence>
+        {deleting && (
+          <motion.div className="overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => !busy && setDeleting(false)}>
+            <motion.div
+              className="modal" role="dialog" aria-modal="true" aria-label="حذف الحساب" onClick={(e) => e.stopPropagation()}
+              initial={{ opacity: 0, y: 40, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 30 }} transition={{ type: 'spring', stiffness: 320, damping: 30 }}
+            >
+              <div className="modal-head">
+                <div><h2>تحذف حسابك نهائياً؟</h2></div>
+                <button type="button" className="icon-btn" onClick={() => setDeleting(false)} aria-label="إغلاق"><X size={18} /></button>
+              </div>
+              <p className="hint admin-warn">
+                ينحذف حسابك وكل ما يخصه: إعلاناتك وصورها، عروضك، مزايداتك، ومحادثاتك. الحذف فوري وما ينرجع.
+                {listings.some((l) => l.kind === 'auction' && l.startsAt) ? ' عندك مزاد مفعّل — حذف الحساب يلغيه.' : ''}
+              </p>
+              <label className="field">
+                <span className="label">اكتب كلمة «حذف» للتأكيد</span>
+                <input className="input" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoFocus />
+              </label>
+              <div className="pledge-actions admin-actions">
+                <button className="btn btn-danger btn-lg" disabled={busy || confirm.trim() !== 'حذف'} onClick={removeAccount}><Trash2 size={17} /> {busy ? 'جاري الحذف…' : 'احذف حسابي نهائياً'}</button>
+                <button className="btn btn-ghost btn-lg" disabled={busy} onClick={() => setDeleting(false)}>إلغاء</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

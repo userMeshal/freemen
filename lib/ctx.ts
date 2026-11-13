@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import type { Admin, Bid, ChatHead, Entry, Fee, Listing, Message, Offer } from './data';
+import type { Admin, Bid, Blocked, ChatHead, Entry, Fee, Listing, Message, NewReport, Offer, Report } from './data';
 
 export type Me = { id: string; name: string; city: string; whatsapp: string };
 export type Toast = { id: number; text: string };
@@ -58,6 +58,17 @@ export type Ctx = {
   placeBid: (listingId: string, amount: number) => Promise<string | null>;
   /** يحدّث عرضاً واحداً من القاعدة (سعر المزاد الحالي ووقته) */
   refreshListing: (id: string) => Promise<void>;
+  /** المستخدمون اللي حظرتهم: ما يراسلوني ولا يعرضون على إعلاناتي، وما أشوف إعلاناتهم */
+  blocked: Blocked[];
+  blockUser: (userId: string, name: string) => Promise<void>;
+  unblockUser: (userId: string) => Promise<void>;
+  /** بلاغ عن إعلان أو مستخدم يوصل لإدارة الموقع */
+  report: (r: NewReport) => Promise<void>;
+  /** حذف حسابي نهائياً — يرجّع نص الخطأ أو null */
+  deleteAccount: () => Promise<string | null>;
+  /** للمشرف: البلاغات المفتوحة */
+  loadReports: () => Promise<Report[]>;
+  resolveReport: (id: string) => Promise<void>;
   isAdmin: boolean;
   /** المشرف الأساسي: الوحيد اللي يضيف ويشيل المشرفين */
   isRootAdmin: boolean;

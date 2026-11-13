@@ -7,6 +7,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowRight, Clock, Gavel, Heart, MapPin, MessagesSquare, Repeat2, ShieldCheck, ShoppingBag, Tag, Trash2 } from 'lucide-react';
 import AuctionPanel from '@/components/Auction';
 import BuyModal from '@/components/BuyModal';
+import SafetyActions from '@/components/Safety';
 import OfferModal from '@/components/OfferModal';
 import OfferRow from '@/components/OfferRow';
 import { CategoryIcon, EASE, ListingArt, ListingCard } from '@/components/ui';
@@ -127,6 +128,7 @@ export default function ListingPage({ params }: { params: { id: string } }) {
               <small><ShieldCheck size={13} /> تقابلوا في مكان عام وافحصوا قبل التسليم</small>
             </div>
           </div>
+          {!mine && <SafetyActions target="listing" userId={listing.ownerId} userName={listing.ownerName} listingId={listing.id} listingTitle={listing.title} afterBlock="/browse" />}
 
           {myOffer && !mine && (
             <div className="my-offer">

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { SEED, auctionPhase, listingValue, minNextBid, parseThread, tierOf, type Bid, type ChatHead, type Entry, type Fee, type Listing, type Message, type Offer } from './data';
+import { SEED, auctionPhase, listingValue, minNextBid, parseThread, tierOf, type Bid, type Blocked, type ChatHead, type Entry, type Fee, type Listing, type Message, type Offer } from './data';
 import { PLEDGE, pledgeBody } from './pledge';
 import { SITE } from './site';
 import { StoreCtx, useChatSeen, useToasts, type Ctx, type Me } from './ctx';
@@ -10,6 +10,7 @@ import { StoreCtx, useChatSeen, useToasts, type Ctx, type Me } from './ctx';
 type Live = Partial<Pick<Listing, 'currentBid' | 'bidsCount' | 'topBidder' | 'startsAt' | 'endsAt'>>;
 type State = { me: Me; listings: Listing[]; offers: Offer[]; favs: string[]; bids: Bid[]; entries: Entry[]; fees: Fee[]; live: Record<string, Live>;
   messages: Message[];
+  blocked: Blocked[];
   pledges: { listingId: string; userId: string; version: string; body: string; fee: number; acceptedAt: number }[];
 };
 
@@ -22,7 +23,7 @@ function demoValue(listing: Listing, i: number) {
   const estValue = round(i ? target * 0.7 : target * 1.05);
   return { estValue, valueTier: tierOf(estValue), cash: i ? round(target * 0.25) : 0 };
 }
-const empty: State = { me: { id: '', name: '', city: 'الرياض', whatsapp: '' }, listings: [], offers: [], favs: [], bids: [], entries: [], fees: [], live: {}, pledges: [], messages: [] };
+const empty: State = { me: { id: '', name: '', city: 'الرياض', whatsapp: '' }, listings: [], offers: [], favs: [], bids: [], entries: [], fees: [], live: {}, pledges: [], messages: [], blocked: [] };
 
 export function LocalProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<State>(empty);
@@ -148,7 +149,11 @@ export function LocalProvider({ children }: { children: React.ReactNode }) {
     return { setMe, addListing, removeListing, addOffer, setOfferStatus, withdrawOffer, sendMessage, requestAuctionFee, requestEntry, toggleFav };
   }, [state.me.id, later, toast]);
 
-  const all = useMemo(() => [...state.listings, ...SEED].map((l) => (state.live[l.id] ? { ...l, ...state.live[l.id] } : l)), [state.listings, state.live]);
+  const blockedIds = useMemo(() => new Set((state.blocked ?? []).map((b) => b.userId)), [state.blocked]);
+  const all = useMemo(
+    () => [...state.listings, ...SEED].filter((l) => !blockedIds.has(l.ownerId)).map((l) => (state.live[l.id] ? { ...l, ...state.live[l.id] } : l)),
+    [state.listings, state.live, blockedIds],
+  );
 
   const loadBids: Ctx['loadBids'] = useCallback(
     async (listingId) => {
@@ -209,6 +214,19 @@ export function LocalProvider({ children }: { children: React.ReactNode }) {
     refreshListing: async () => {},
     isAdmin: false,
     isRootAdmin: false,
+    blocked: state.blocked ?? [],
+    blockUser: async (userId, name) => setState((s) => ({ ...s, blocked: [{ userId, name }, ...(s.blocked ?? []).filter((b) => b.userId !== userId)] })),
+    unblockUser: async (userId) => setState((s) => ({ ...s, blocked: (s.blocked ?? []).filter((b) => b.userId !== userId) })),
+    report: async () => {},
+    deleteAccount: async () => {
+      try {
+        localStorage.removeItem(KEY);
+      } catch {}
+      setState({ ...empty, me: { ...empty.me, id: `u-${uid()}` } });
+      return null;
+    },
+    loadReports: async () => [],
+    resolveReport: async () => {},
     loadAdmins: async () => [],
     addAdmin: async () => 'الإدارة تشتغل مع قاعدة البيانات فقط',
     removeAdmin: async () => null,

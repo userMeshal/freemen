@@ -90,6 +90,33 @@ export function parseThread(thread: string) {
 /** مشرف في صفحة الإدارة. الأساسي (isRoot) مضاف من قاعدة البيانات مباشرة ولا يُشال من الموقع */
 export type Admin = { userId: string; name: string; email: string; addedAt: number; isRoot: boolean };
 
+export const REPORT_REASONS = [
+  { id: 'fraud', label: 'احتيال أو نصب' },
+  { id: 'prohibited', label: 'غرض ممنوع' },
+  { id: 'offensive', label: 'محتوى مسيء أو غير لائق' },
+  { id: 'misleading', label: 'إعلان مضلل أو مكرر' },
+  { id: 'harassment', label: 'إزعاج أو تهديد' },
+  { id: 'other', label: 'سبب آخر' },
+] as const;
+export type ReportReason = (typeof REPORT_REASONS)[number]['id'];
+
+/** بلاغ عن إعلان أو مستخدم */
+export type Report = {
+  id: string;
+  target: 'listing' | 'user';
+  listingId?: string;
+  listingTitle?: string;
+  reportedUserId?: string;
+  reportedName?: string;
+  reporterName?: string;
+  reason: ReportReason;
+  details: string;
+  status: 'open' | 'resolved';
+  createdAt: number;
+};
+export type NewReport = Pick<Report, 'target' | 'listingId' | 'listingTitle' | 'reportedUserId' | 'reason' | 'details'>;
+export type Blocked = { userId: string; name: string };
+
 export type Bid = { id: string; listingId: string; bidderId: string; bidderName: string; amount: number; createdAt: number };
 
 /** طلب دخول مزاد: المستخدم يحوّل الرسم بنكياً والمشرف يتحقق ويفعّل */

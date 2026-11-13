@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowRight, MessageCircle, SendHorizontal, ShieldCheck } from 'lucide-react';
+import SafetyActions from '@/components/Safety';
 import { ListingArt } from '@/components/ui';
 import { auctionEnded, formatSAR, parseThread, type Message } from '@/lib/data';
 import { useStore } from '@/lib/store';
@@ -129,6 +130,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
           </div>
           {wa && <a className="btn btn-ghost btn-sm" href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer"><MessageCircle size={15} /> واتساب</a>}
         </header>
+        {otherId && <SafetyActions target="user" userId={otherId} userName={otherName ?? 'المستخدم'} listingId={listing!.id} listingTitle={listing!.title} afterBlock="/offers" />}
 
         <div className="chat-body" ref={boxRef} role="log" aria-live="polite" aria-label="الرسائل">
           <p className="chat-safety"><ShieldCheck size={14} /> تقابلوا في مكان عام وافحصوا قبل التسليم، ولا تحوّل أي مبلغ قبل ما تستلم.</p>
