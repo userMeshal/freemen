@@ -500,3 +500,61 @@ create trigger listings_record_pledge after insert on public.listings
 
 -- المستخدم يرسل رقم النسخة عند النشر فقط؛ لا يكتب وقت الموافقة ولا يغيّرهما لاحقاً
 grant insert (pledge_version) on public.listings to authenticated;
+
+-- ════════════════════════════════════════════════════════════════
+--  المرحلة 4: المحادثات بين الطرفين بعد الاتفاق
+--  تُفتح المحادثة عند قبول عرض (بدل أو شراء)، أو بين صاحب المزاد والفائز بعد انتهائه.
+--  لا يقرأ الرسائل ولا يكتبها إلا الطرفان.
+-- ════════════════════════════════════════════════════════════════
+
+create table if not exists public.messages (
+  id uuid primary key default gen_random_uuid(),
+  offer_id uuid references public.offers (id) on delete cascade,       -- محادثة عرض مقبول
+  auction_id uuid references public.listings (id) on delete cascade,   -- محادثة مزاد منتهٍ
+  sender_id uuid not null references public.profiles (id) on delete cascade,
+  body text not null check (char_length(btrim(body)) between 1 and 1000),
+  created_at timestamptz not null default now(),
+  check ((offer_id is null) <> (auction_id is null))
+);
+create index if not exists messages_offer_idx on public.messages (offer_id, created_at) where offer_id is not null;
+create index if not exists messages_auction_idx on public.messages (auction_id, created_at) where auction_id is not null;
+
+-- طرفا عرض مقبول: مرسل العرض وصاحب الغرض
+create or replace function public.can_chat_offer(oid uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from public.offers o join public.listings l on l.id = o.listing_id
+    where o.id = oid and o.status = 'accepted' and auth.uid() in (o.from_id, l.owner_id)
+  );
+$$;
+
+-- طرفا مزاد منتهٍ: صاحبه والفائز به
+create or replace function public.can_chat_auction(lid uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from public.listings l
+    where l.id = lid and l.kind = 'auction' and l.ends_at <= now() and l.top_bidder is not null
+      and auth.uid() in (l.owner_id, l.top_bidder)
+  );
+$$;
+
+alter table public.messages enable row level security;
+drop policy if exists "messages read parties" on public.messages;
+drop policy if exists "messages send parties" on public.messages;
+create policy "messages read parties" on public.messages for select to authenticated
+  using ((offer_id is not null and public.can_chat_offer(offer_id)) or (auction_id is not null and public.can_chat_auction(auction_id)));
+create policy "messages send parties" on public.messages for insert to authenticated
+  with check (
+    sender_id = auth.uid()
+    and ((offer_id is not null and public.can_chat_offer(offer_id)) or (auction_id is not null and public.can_chat_auction(auction_id)))
+  );
+-- الرسالة لا تُعدَّل ولا تُحذف بعد إرسالها، ووقتها من ساعة الخادم
+revoke insert, update, delete on public.messages from anon, authenticated;
+grant insert (offer_id, auction_id, sender_id, body) on public.messages to authenticated;
+
+do $$
+begin
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'messages') then
+    alter publication supabase_realtime add table public.messages;
+  end if;
+end $$;

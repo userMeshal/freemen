@@ -2,15 +2,17 @@
 
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { Check, MessageCircle, Repeat2, ShoppingBag, X } from 'lucide-react';
-import { fairness, formatSAR, listingValue, offerValue, timeAgo, type Listing, type Offer } from '@/lib/data';
+import { Check, MessageCircle, MessagesSquare, Repeat2, ShoppingBag, X } from 'lucide-react';
+import { fairness, formatSAR, listingValue, offerThread, offerValue, timeAgo, type Listing, type Offer } from '@/lib/data';
 import { useStore } from '@/lib/store';
 import { CategoryIcon, EASE } from './ui';
 
 const STATUS = { pending: 'بانتظار الرد', accepted: 'تم القبول', rejected: 'مرفوض' } as const;
 
 export default function OfferRow({ offer, listing, role }: { offer: Offer; listing?: Listing; role: 'owner' | 'sender' }) {
-  const { setOfferStatus, withdrawOffer, toast, contactFor } = useStore();
+  const { setOfferStatus, withdrawOffer, toast, contactFor, unread } = useStore();
+  const thread = offerThread(offer.id);
+  const hasUnread = unread.includes(thread);
   const buy = offer.kind === 'buy';
   const f = listing && !buy ? fairness(listingValue(listing), offerValue(offer)) : null;
   const diff = buy && listing?.price ? (offer.cash ?? 0) - listing.price : 0;
@@ -72,10 +74,12 @@ export default function OfferRow({ offer, listing, role }: { offer: Offer; listi
 
         {offer.status === 'accepted' && (
           <motion.div className="offer-deal" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
-            {wa && !offer.demo ? (
-              <a className="btn btn-primary btn-sm" href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer"><MessageCircle size={15} /> تواصل واتساب</a>
-            ) : (
-              <span className="deal-hint"><MessageCircle size={14} /> تم الاتفاق — {offer.demo ? 'رتّبوا مكان ووقت اللقاء وسلّموا يد بيد.' : 'الطرف الثاني ما أضاف رقم واتساب للحين.'}</span>
+            <Link className="btn btn-primary btn-sm chat-link" href={`/chat/${thread}`}>
+              <MessagesSquare size={15} /> {hasUnread ? 'رسالة جديدة' : 'المحادثة'}
+              {hasUnread && <span className="dot" aria-hidden />}
+            </Link>
+            {wa && !offer.demo && (
+              <a className="btn btn-ghost btn-sm" href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer"><MessageCircle size={15} /> واتساب</a>
             )}
           </motion.div>
         )}

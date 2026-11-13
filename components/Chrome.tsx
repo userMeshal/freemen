@@ -43,7 +43,7 @@ function ThemeToggle() {
 
 function Nav() {
   const pathname = usePathname();
-  const { offers, listings, me, cloud, authed, isAdmin } = useStore();
+  const { offers, listings, me, cloud, authed, isAdmin, unread } = useStore();
   const guest = cloud && !authed;
   const links = guest ? [...LINKS.slice(0, 2), { href: '/login', label: 'دخول' }] : isAdmin ? [...LINKS, { href: '/admin', label: 'الإدارة' }] : LINKS;
   const [open, setOpen] = useState(false);
@@ -78,7 +78,7 @@ function Nav() {
             {links.map((l) => (
               <Link key={l.href} href={l.href} className={pathname === l.href ? 'is-active' : ''}>
                 {l.label}
-                {l.href === '/offers' && pending > 0 && <span className="badge">{pending}</span>}
+                {l.href === '/offers' && pending + unread.length > 0 && <span className="badge">{pending + unread.length}</span>}
               </Link>
             ))}
           </nav>

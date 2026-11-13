@@ -76,6 +76,15 @@ export type Listing = {
   offersCount?: number;
 };
 
+/** رسالة في محادثة بين طرفي اتفاق. thread = "o-<معرّف العرض>" أو "a-<معرّف المزاد>" */
+export type Message = { id: string; thread: string; senderId: string; body: string; createdAt: number; demo?: boolean };
+/** آخر رسالة في كل محادثة — لعرض التنبيهات */
+export type ChatHead = { thread: string; lastAt: number; lastFrom: string; lastBody: string };
+
+export const offerThread = (offerId: string) => `o-${offerId}`;
+export const auctionThread = (listingId: string) => `a-${listingId}`;
+export const parseThread = (thread: string) => ({ kind: thread.startsWith('a-') ? ('auction' as const) : ('offer' as const), id: thread.slice(2) });
+
 export type Bid = { id: string; listingId: string; bidderId: string; bidderName: string; amount: number; createdAt: number };
 
 /** طلب دخول مزاد: المستخدم يحوّل الرسم بنكياً والمشرف يتحقق ويفعّل */

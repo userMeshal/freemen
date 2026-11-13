@@ -4,8 +4,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Check, Clock, Copy, Gavel, Hourglass, Lock, MessageCircle, Trophy, Wallet, X } from 'lucide-react';
-import { auctionPhase, formatSAR, minNextBid, parseAmount, registrationCloses, timeAgo, timeLeft, type Bid, type Listing } from '@/lib/data';
+import Link from 'next/link';
+import { Check, Clock, Copy, Gavel, Hourglass, Lock, MessageCircle, MessagesSquare, Trophy, Wallet, X } from 'lucide-react';
+import { auctionPhase, auctionThread, formatSAR, minNextBid, parseAmount, registrationCloses, timeAgo, timeLeft, type Bid, type Listing } from '@/lib/data';
 import { SITE } from '@/lib/site';
 import { useStore } from '@/lib/store';
 import { EASE } from './ui';
@@ -125,7 +126,7 @@ function State({ icon: Icon, title, text, tone, children }: { icon: typeof Clock
 /** لوحة المزاد في صفحة العرض: التفعيل، التسجيل قبل البداية، المزايدة، والنتيجة */
 export default function AuctionPanel({ listing, mine }: { listing: Listing; mine: boolean }) {
   const router = useRouter();
-  const { authed, me, entries, fees, loadBids, placeBid, refreshListing, requestEntry, requestAuctionFee, contactFor, toast } = useStore();
+  const { authed, me, entries, fees, unread, loadBids, placeBid, refreshListing, requestEntry, requestAuctionFee, contactFor, toast } = useStore();
   const [bids, setBids] = useState<Bid[]>([]);
   const [text, setText] = useState('');
   const [error, setError] = useState('');
@@ -249,8 +250,13 @@ export default function AuctionPanel({ listing, mine }: { listing: Listing; mine
           title={!listing.topBidder ? 'انتهى المزاد بدون مزايدات' : leading ? 'مبروك! أنت الفائز بالمزاد' : mine ? `الفائز: ${bids[0]?.bidderName ?? 'صاحب أعلى مزايدة'}` : 'انتهى المزاد وفاز صاحب أعلى مزايدة'}
         >
           {(mine || leading) && listing.topBidder && (
-            wa ? <a className="btn btn-primary btn-sm" href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer"><MessageCircle size={15} /> تواصل واتساب</a>
-              : <small>رتّبوا التسليم والدفع بينكم مباشرة. الطرف الثاني ما أضاف رقم واتساب.</small>
+            <div className="offer-actions">
+              <Link className="btn btn-primary btn-sm chat-link" href={`/chat/${auctionThread(listing.id)}`}>
+                <MessagesSquare size={15} /> {unread.includes(auctionThread(listing.id)) ? 'رسالة جديدة' : 'المحادثة'}
+                {unread.includes(auctionThread(listing.id)) && <span className="dot" aria-hidden />}
+              </Link>
+              {wa && <a className="btn btn-ghost btn-sm" href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer"><MessageCircle size={15} /> واتساب</a>}
+            </div>
           )}
         </State>
       ) : mine ? (
