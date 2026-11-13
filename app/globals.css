@@ -1,4 +1,4 @@
-/* ───────── تليته — نظام التصميم ───────── */
+/* ───────── حطّها — نظام التصميم ───────── */
 :root {
   --bg: #ffffff;
   --bg-soft: #f5f5f3;
@@ -115,11 +115,8 @@ img { max-width: 100%; display: block; }
 .nav-actions { display: flex; align-items: center; gap: 6px; }
 .nav-burger { display: none; }
 .badge { min-width: 20px; height: 20px; padding-inline: 6px; border-radius: 999px; background: var(--ink); color: var(--bg); font-size: 12px; display: inline-grid; place-items: center; }
-.logo { display: inline-flex; align-items: center; gap: 9px; }
-.logo-top, .logo-bot { transition: transform 0.6s var(--ease); }
-.logo:hover .logo-top { transform: translateX(-6.67px); }
-.logo:hover .logo-bot { transform: translateX(6.67px); }
-.logo-word { font-size: 25px; font-weight: 700; line-height: 1; }
+.logo { display: block; width: auto; transition: transform 0.5s var(--ease); }
+a:hover > .logo { transform: skewX(-6deg) scale(1.04); }
 .menu { position: fixed; inset: 0; z-index: 40; background: var(--bg); display: flex; flex-direction: column; justify-content: center; gap: 8px; padding: 32px; }
 .menu a { font-size: 40px; font-weight: 600; display: block; padding-block: 6px; }
 
@@ -266,7 +263,8 @@ img { max-width: 100%; display: block; }
 .footer-col a { transition: color 0.2s; width: fit-content; }
 .footer-col a:hover { color: var(--ink); }
 .footer-bottom { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-top: 56px; padding-block: 22px; border-top: 1px solid var(--line); font-size: 13.5px; color: var(--muted); }
-.footer-giant { font-size: 27vw; font-weight: 700; line-height: 1.25; text-align: center; margin-bottom: -0.12em; background: linear-gradient(180deg, var(--line-strong), transparent 82%); -webkit-background-clip: text; background-clip: text; color: transparent; user-select: none; }
+.footer-giant { padding: 24px 6vw 0; color: var(--line-strong); mask-image: linear-gradient(180deg, #000, transparent 88%); -webkit-mask-image: linear-gradient(180deg, #000, transparent 88%); user-select: none; }
+.footer-giant .logo { width: 100%; height: auto; }
 
 /* ───────── التصفح ───────── */
 .filters { display: flex; gap: 12px; margin-bottom: 16px; }
@@ -632,3 +630,14 @@ a.offer:hover { border-color: var(--line-strong); }
 .thread.is-new .thread-last { color: var(--ink); font-weight: 500; }
 .thread-last { margin-top: 4px; color: var(--muted); font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .detail-actions .chat-link { flex: none; }
+
+/* ───────── شعار الواجهة والشخابيط ───────── */
+:root { --scribble-a: #ff7a3d; --scribble-b: #7c5cff; --scribble-c: #1fa9ff; }
+:root[data-theme='dark'] { --scribble-a: #ff9a66; --scribble-b: #a48cff; --scribble-c: #5cc4ff; }
+.hero-logo { width: clamp(230px, 27vw, 400px); margin: 34px 46px 18px 40px; cursor: pointer; }
+.hero-logo svg { display: block; width: 100%; height: auto; overflow: visible; }
+.scribble-a { stroke: var(--scribble-a); }
+.scribble-b { stroke: var(--scribble-b); }
+.scribble-c { stroke: var(--scribble-c); }
+.scribble-ink { stroke: var(--ink); }
+@media (max-width: 560px) { .hero-logo { margin: 26px 34px 12px 30px; } }

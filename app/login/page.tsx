@@ -67,7 +67,7 @@ function Login() {
     <div className="container page">
       <div className="auth">
         <header className="page-head">
-          <span className="eyebrow">حسابك في تليته</span>
+          <span className="eyebrow">حسابك في حطّها</span>
           <h1 className="h2">{mode === 'in' ? 'هلا من جديد' : mode === 'up' ? 'حساب جديد' : 'نسيت كلمة المرور؟'}</h1>
         </header>
 

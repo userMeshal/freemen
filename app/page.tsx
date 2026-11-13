@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRef } from 'react';
 import { motion, useScroll, useTransform, type MotionValue } from 'framer-motion';
 import { ArrowLeft, Camera, Handshake, MessagesSquare, Scale, ShieldCheck, Sparkles, Wallet } from 'lucide-react';
+import HeroLogo from '@/components/HeroLogo';
 import HeroSwap from '@/components/HeroSwap';
 import { CategoryIcon, Counter, EASE, ListingCard, Reveal } from '@/components/ui';
 import { CATEGORIES, CITIES, auctionEnded } from '@/lib/data';
@@ -14,7 +15,7 @@ import { useStore } from '@/lib/store';
 const HEADLINE = ['بدّل.', 'بِع.', 'زاوِد.'];
 
 const MANIFESTO =
-  'في كل بيت أغراض قيمتها محفوظة وفايدتها واقفة. تليته يحرّكها بثلاث طرق: بدّلها بغرض تحتاجه، بيعها بالسعر اللي تحدده، أو حطها بمزاد وأعلى مزايدة تاخذها.';
+  'في كل بيت أغراض قيمتها محفوظة وفايدتها واقفة. حطّها يحرّكها بثلاث طرق: بدّلها بغرض تحتاجه، بيعها بالسعر اللي تحدده، أو حطها بمزاد وأعلى مزايدة تاخذها.';
 
 function Word({ children, progress, range }: { children: string; progress: MotionValue<number>; range: [number, number] }) {
   const opacity = useTransform(progress, range, [0.12, 1]);
@@ -72,7 +73,7 @@ function Bento() {
   return (
     <section className="section container">
       <Reveal>
-        <span className="eyebrow">ليش تليته</span>
+        <span className="eyebrow">ليش حطّها</span>
         <h2 className="h2">ثلاث طرق،<br />وسوق واحد.</h2>
       </Reveal>
       <div className="bento">
@@ -138,9 +139,7 @@ export default function Home() {
         </motion.div>
         <div className="container hero-grid">
           <div className="hero-copy">
-            <motion.span className="pill" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: EASE }}>
-              <span className="pill-dot" /> بدل · بيع · مزاد
-            </motion.span>
+            <HeroLogo />
             <h1 className="h1" aria-label={HEADLINE.join(' ')}>
               {HEADLINE.map((w, i) => (
                 <span key={i} className="h1-mask" aria-hidden>
@@ -206,7 +205,7 @@ export default function Home() {
         {ready && all.length === 0 && (
           <div className="empty">
             <h3>السوق توّه فاتح</h3>
-            <p>كن أول من يعرض غرض على تليته.</p>
+            <p>كن أول من يعرض غرض على حطّها.</p>
             <Link href="/new" className="btn btn-primary">اعرض غرضك</Link>
           </div>
         )}
