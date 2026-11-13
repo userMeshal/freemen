@@ -8,9 +8,9 @@ import './globals.css';
 import Chrome from '@/components/Chrome';
 
 export const metadata: Metadata = {
-  title: { default: 'تليته — سوق المقايضة السعودي', template: '%s — تليته' },
+  title: { default: 'تليته — بدّل، بِع، وزاوِد', template: '%s — تليته' },
   applicationName: 'تليته',
-  description: 'اعرض غرضك، استقبل عروض البدل، وبدّل اللي عندك باللي تبيه. مقايضة غرض بغرض في كل مدن السعودية — والفرق يتعدّل بمبلغ.',
+  description: 'سوق واحد لكل أغراضك في السعودية: بدّلها بغرض ثاني، بيعها بسعرك، أو اعرضها بمزاد.',
 };
 
 export const viewport: Viewport = {

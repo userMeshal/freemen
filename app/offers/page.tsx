@@ -3,9 +3,10 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Heart, Inbox, LogOut, Plus, Send } from 'lucide-react';
+import { Gavel, Heart, Inbox, LogOut, Plus, Send } from 'lucide-react';
 import OfferRow from '@/components/OfferRow';
 import { ListingArt, ListingCard } from '@/components/ui';
+import { auctionEnded, formatSAR, timeLeft } from '@/lib/data';
 import { useStore } from '@/lib/store';
 
 const TABS = [
@@ -15,17 +16,18 @@ const TABS = [
 ] as const;
 
 export default function OffersPage() {
-  const { listings, offers, all, favs, me, ready, cloud, authed, email, signOut } = useStore();
+  const { listings, offers, all, favs, me, ready, cloud, authed, email, signOut, entries } = useStore();
   const [tab, setTab] = useState<(typeof TABS)[number]['id']>('in');
   const sent = offers.filter((o) => o.fromId === me.id);
   const favList = all.filter((l) => favs.includes(l.id));
-  const counts = { in: offers.length - sent.length, out: sent.length, fav: favList.length };
+  const counts = { in: offers.length - sent.length, out: sent.length + entries.length, fav: favList.length };
+  const ENTRY = { pending: 'قيد التحقق من التحويل', approved: 'دخولك مفعّل', rejected: 'لم يتطابق التحويل' } as const;
 
   if (ready && !authed) {
     return (
       <div className="container page page-narrow empty">
         <h1 className="h2">سجّل دخولك</h1>
-        <p className="lead">عشان تشوف عروض البدل اللي وصلتك واللي أرسلتها.</p>
+        <p className="lead">عشان تشوف العروض اللي وصلتك واللي أرسلتها ومزاداتك.</p>
         <Link href="/login?next=/offers" className="btn btn-primary btn-lg">دخول / حساب جديد</Link>
       </div>
     );
@@ -56,7 +58,7 @@ export default function OffersPage() {
         <motion.div key={tab} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }}>
           {tab === 'in' && (
             listings.length === 0 ? (
-              <Empty title="ما عرضت شي للحين" text="اعرض أول غرض وخلّ عروض البدل توصلك." />
+              <Empty title="ما عرضت شي للحين" text="اعرض أول غرض: للبدل، للبيع، أو بمزاد." />
             ) : (
               listings.map((l) => {
                 const incoming = offers.filter((o) => o.listingId === l.id);
@@ -66,13 +68,17 @@ export default function OffersPage() {
                       <span className="mine-thumb"><ListingArt listing={l} iconSize={22} /></span>
                       <div>
                         <strong>{l.title}</strong>
-                        <small>{incoming.length ? `${incoming.length} عرض بدل` : 'بانتظار أول عرض…'}</small>
+                        <small>
+                          {l.kind === 'auction'
+                            ? `مزاد · ${l.bidsCount ?? 0} مزايدة${l.currentBid ? ` · الأعلى ${formatSAR(l.currentBid)}` : ''} · ${auctionEnded(l) ? 'انتهى' : `باقي ${timeLeft(l.endsAt ?? 0)}`}`
+                            : incoming.length ? `${incoming.length} ${l.kind === 'sale' ? 'طلب شراء' : 'عرض بدل'}` : 'بانتظار أول عرض…'}
+                        </small>
                       </div>
                     </Link>
                     <AnimatePresence initial={false}>
                       {incoming.map((o) => <OfferRow key={o.id} offer={o} listing={l} role="owner" />)}
                     </AnimatePresence>
-                    {incoming.length === 0 && <div className="waiting"><span /><span /><span /></div>}
+                    {incoming.length === 0 && l.kind !== 'auction' && <div className="waiting"><span /><span /><span /></div>}
                   </section>
                 );
               })
@@ -80,10 +86,34 @@ export default function OffersPage() {
           )}
 
           {tab === 'out' && (
-            sent.length === 0 ? (
-              <Empty title="ما أرسلت أي عرض بدل" text="تصفّح العروض واعرض غرضك مقابل اللي يعجبك." href="/browse" cta="تصفّح العروض" />
+            sent.length + entries.length === 0 ? (
+              <Empty title="ما أرسلت أي عرض" text="تصفّح السوق: اعرض بدلك، اطلب الشراء، أو ادخل مزاد." href="/browse" cta="تصفّح السوق" />
             ) : (
-              sent.map((o) => <OfferRow key={o.id} offer={o} listing={all.find((l) => l.id === o.listingId)} role="sender" />)
+              <>
+                {entries.map((e) => {
+                  const l = all.find((x) => x.id === e.listingId);
+                  return (
+                    <Link key={e.id} href={`/listing/${e.listingId}`} className={`offer offer-${e.status === 'approved' ? 'accepted' : e.status}`}>
+                      <div className="offer-thumb"><Gavel size={24} strokeWidth={1.4} /></div>
+                      <div className="offer-main">
+                        <div className="offer-top">
+                          <strong>مزاد: {l?.title ?? 'مزاد محذوف'}</strong>
+                          <span className={`status status-${e.status === 'approved' ? 'accepted' : e.status}`}>{ENTRY[e.status]}</span>
+                          {e.demo && <span className="status status-demo">تجريبي</span>}
+                        </div>
+                        {l && (
+                          <div className="offer-sub">
+                            <span>{l.currentBid ? `أعلى مزايدة ${formatSAR(l.currentBid)}` : `يبدأ من ${formatSAR(l.price ?? 0)}`}</span>
+                            <span suppressHydrationWarning>{auctionEnded(l) ? 'انتهى' : `باقي ${timeLeft(l.endsAt ?? 0)}`}</span>
+                            {l.topBidder === me.id && <span className="fair-tag fair-2">{auctionEnded(l) ? 'فزت بالمزاد' : 'أنت الأعلى'}</span>}
+                          </div>
+                        )}
+                      </div>
+                    </Link>
+                  );
+                })}
+                {sent.map((o) => <OfferRow key={o.id} offer={o} listing={all.find((l) => l.id === o.listingId)} role="sender" />)}
+              </>
             )
           )}
 

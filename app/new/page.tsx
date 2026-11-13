@@ -3,12 +3,22 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft, ArrowRight, Check, ImagePlus, Plus, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Gavel, ImagePlus, Plus, Repeat2, Tag, X } from 'lucide-react';
 import { CategoryIcon, EASE } from '@/components/ui';
-import { CATEGORIES, CITIES, CONDITIONS, parseAmount, tierOf, type Listing } from '@/lib/data';
+import { CATEGORIES, CITIES, CONDITIONS, formatSAR, parseAmount, tierOf, type Kind, type Listing } from '@/lib/data';
+import { SITE } from '@/lib/site';
 import { fileToDataUrl, useStore } from '@/lib/store';
 
-const STEP_TITLES = ['وش عندك؟', 'عطنا التفاصيل', 'وش تبي بداله؟'];
+const KIND_CARDS: { id: Kind; icon: typeof Tag; title: string; text: string }[] = [
+  { id: 'swap', icon: Repeat2, title: 'بدل', text: 'بدّله بغرض ثاني، مع فرق مبلغ لو احتاج.' },
+  { id: 'sale', icon: Tag, title: 'بيع', text: 'حدّد سعرك واستقبل طلبات الشراء.' },
+  { id: 'auction', icon: Gavel, title: 'مزاد', text: 'حدّد سعر البداية والمدة، وأعلى مزايدة تفوز.' },
+];
+const DURATIONS = [
+  { days: 1, label: 'يوم' },
+  { days: 3, label: '3 أيام' },
+  { days: 7, label: 'أسبوع' },
+];
 const SUGGEST = ['آيفون', 'بلايستيشن 5', 'ماك بوك', 'ساعة ذكية', 'دراجة', 'آيباد', 'كاميرا'];
 
 export default function NewListing() {
@@ -18,13 +28,15 @@ export default function NewListing() {
   const [dir, setDir] = useState(1);
   const [done, setDone] = useState<Listing | null>(null);
 
+  const [kind, setKind] = useState<Kind>('swap');
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('');
   const [images, setImages] = useState<string[]>([]);
   const [condition, setCondition] = useState(CONDITIONS[1]);
   const [city, setCity] = useState(me.city || CITIES[0]);
-  const [valueText, setValueText] = useState('');
-  const value = parseAmount(valueText);
+  const [amountText, setAmountText] = useState('');
+  const [stepText, setStepText] = useState('');
+  const [days, setDays] = useState(3);
   const [description, setDescription] = useState('');
   const [wants, setWants] = useState<string[]>([]);
   const [want, setWant] = useState('');
@@ -32,10 +44,15 @@ export default function NewListing() {
   const [name, setName] = useState(me.name);
   const [whatsapp, setWhatsapp] = useState(me.whatsapp);
 
+  /** القيمة التقريبية (بدل) أو السعر (بيع) أو سعر البداية (مزاد) */
+  const amount = parseAmount(amountText);
+  const increment = parseAmount(stepText) || Math.max(5, Math.round(amount / 20 / 5) * 5);
+
+  const titles = ['وش عندك؟', 'عطنا التفاصيل', kind === 'swap' ? 'وش تبي بداله؟' : 'آخر خطوة'];
   const ok = [
     title.trim().length > 2 && !!category,
-    value > 0,
-    (wants.length > 0 || open) && name.trim().length > 1,
+    amount > 0,
+    (kind !== 'swap' || wants.length > 0 || open) && name.trim().length > 1,
   ][step];
 
   const go = (d: number) => { setDir(d); setStep((s) => s + d); window.scrollTo({ top: 0, behavior: 'smooth' }); };
@@ -49,15 +66,22 @@ export default function NewListing() {
     const next = await Promise.all(Array.from(files).slice(0, 3 - images.length).map((f) => fileToDataUrl(f)));
     setImages((x) => [...x, ...next]);
   };
+
   const publish = async () => {
     if (busy) return;
     setBusy(true);
     try {
       await setMe({ name: name.trim(), city, whatsapp: whatsapp.trim() });
       const l = await addListing({
-      title: title.trim(), category, condition, city, description: description.trim(), wants, openToOffers: open,
-      valueTier: tierOf(value), estValue: value, images, ownerName: name.trim(), whatsapp: whatsapp.trim() || undefined,
-    });
+        kind, title: title.trim(), category, condition, city, description: description.trim(), images,
+        wants: kind === 'swap' ? wants : [], openToOffers: kind === 'swap' ? open : false,
+        valueTier: tierOf(amount), estValue: kind === 'swap' ? amount : undefined,
+        price: kind === 'swap' ? undefined : amount,
+        minIncrement: kind === 'auction' ? increment : undefined,
+        endsAt: kind === 'auction' ? Date.now() + days * 86_400_000 : undefined,
+        bidsCount: 0,
+        ownerName: name.trim(), whatsapp: whatsapp.trim() || undefined,
+      });
       setDone(l);
       toast('انتشر عرضك');
     } catch {
@@ -79,7 +103,7 @@ export default function NewListing() {
     return (
       <div className="container page page-narrow empty">
         <h1 className="h2">سجّل دخولك أول</h1>
-        <p className="lead">عشان تعرض غرضك وتوصلك عروض البدل لازم يكون عندك حساب — ياخذ دقيقة.</p>
+        <p className="lead">عشان تعرض غرضك وتوصلك العروض لازم يكون عندك حساب — ياخذ دقيقة.</p>
         <Link href="/login?next=/new" className="btn btn-primary btn-lg">دخول / حساب جديد</Link>
       </div>
     );
@@ -91,8 +115,13 @@ export default function NewListing() {
         <motion.div className="success-ring" initial={{ scale: 0, rotate: -90 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 200, damping: 14 }}>
           <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.25, type: 'spring', stiffness: 300, damping: 12 }}><Check size={44} strokeWidth={2.5} /></motion.span>
         </motion.div>
-        <motion.h1 className="h2" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3, duration: 0.7, ease: EASE }}>عرضك صار على تليته</motion.h1>
-        <motion.p className="lead" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.45 }}>«{done.title}» الحين معروض. أول ما يوصلك عرض بدل بننبّهك.</motion.p>
+        <motion.h1 className="h2" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3, duration: 0.7, ease: EASE }}>
+          {done.kind === 'auction' ? 'مزادك بدأ' : `عرضك صار على ${SITE.name}`}
+        </motion.h1>
+        <motion.p className="lead" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.45 }}>
+          «{done.title}» الحين معروض.{' '}
+          {done.kind === 'swap' ? 'أول ما يوصلك عرض بدل بننبّهك.' : done.kind === 'sale' ? 'طلبات الشراء توصلك في صفحة عروضي.' : 'تابع المزايدات من صفحة المزاد.'}
+        </motion.p>
         <motion.div className="hero-cta" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}>
           <Link href="/offers" className="btn btn-primary btn-lg">تابع العروض</Link>
           <Link href={`/listing/${done.id}`} className="btn btn-ghost btn-lg">شوف عرضك</Link>
@@ -109,21 +138,26 @@ export default function NewListing() {
       </div>
 
       <AnimatePresence mode="wait" custom={dir}>
-        <motion.div
-          key={step}
-          custom={dir}
-          initial={{ opacity: 0, x: dir * -50 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: dir * 50 }}
-          transition={{ duration: 0.4, ease: EASE }}
-        >
-          <h1 className="h2 wizard-title">{STEP_TITLES[step]}</h1>
+        <motion.div key={step} custom={dir} initial={{ opacity: 0, x: dir * -50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: dir * 50 }} transition={{ duration: 0.4, ease: EASE }}>
+          <h1 className="h2 wizard-title">{titles[step]}</h1>
 
           {step === 0 && (
             <>
+              <div className="field">
+                <span className="label">كيف تبي تعرضه؟</span>
+                <div className="kind-grid" role="radiogroup" aria-label="نوع العرض">
+                  {KIND_CARDS.map((k) => (
+                    <motion.button type="button" key={k.id} role="radio" aria-checked={kind === k.id} className={`kind-card ${kind === k.id ? 'is-on' : ''}`} onClick={() => setKind(k.id)} whileTap={{ scale: 0.97 }}>
+                      <k.icon size={24} strokeWidth={1.5} />
+                      <strong>{k.title}</strong>
+                      <span>{k.text}</span>
+                    </motion.button>
+                  ))}
+                </div>
+              </div>
               <label className="field">
                 <span className="label">اسم الغرض</span>
-                <input className="input input-xl" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="مثال: آيفون 14 برو 256 قيقا" autoFocus maxLength={60} />
+                <input className="input input-xl" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="مثال: آيفون 14 برو 256 قيقا" maxLength={60} />
               </label>
               <div className="field">
                 <span className="label">القسم</span>
@@ -177,11 +211,30 @@ export default function NewListing() {
                   <select className="select" value={city} onChange={(e) => setCity(e.target.value)}>{CITIES.map((c) => <option key={c}>{c}</option>)}</select>
                 </label>
                 <label className="field">
-                  <span className="label">القيمة التقريبية (ريال)</span>
-                  <input className="input" dir="ltr" inputMode="numeric" value={valueText} onChange={(e) => setValueText(e.target.value)} placeholder="مثال: 2500" />
+                  <span className="label">{kind === 'swap' ? 'القيمة التقريبية (ريال)' : kind === 'sale' ? 'السعر (ريال)' : 'سعر بداية المزاد (ريال)'}</span>
+                  <input className="input" dir="ltr" inputMode="numeric" value={amountText} onChange={(e) => setAmountText(e.target.value)} placeholder="مثال: 2500" />
                 </label>
               </div>
-              <p className="hint">قيمة تقريبية تكفي — تظهر في صفحة العرض ويستخدمها «ميزان البدل» عشان توصلك عروض عادلة.</p>
+              {kind === 'swap' && <p className="hint">قيمة تقريبية تكفي — تظهر في صفحة العرض ويستخدمها «ميزان البدل» عشان توصلك عروض عادلة.</p>}
+              {kind === 'auction' && (
+                <>
+                  <div className="row">
+                    <label className="field">
+                      <span className="label">أقل زيادة بالمزايدة (ريال)</span>
+                      <input className="input" dir="ltr" inputMode="numeric" value={stepText} onChange={(e) => setStepText(e.target.value)} placeholder={amount ? String(increment) : 'مثال: 50'} />
+                    </label>
+                    <div className="field">
+                      <span className="label">مدة المزاد</span>
+                      <div className="chips chips-wrap">
+                        {DURATIONS.map((d) => <button type="button" key={d.days} className={`chip chip-btn chip-lg ${days === d.days ? 'is-solid' : ''}`} onClick={() => setDays(d.days)}>{d.label}</button>)}
+                      </div>
+                    </div>
+                  </div>
+                  <p className="hint">
+                    السعر والمدة ما يتغيرون بعد النشر، والمزاد ما ينحذف بعد أول مزايدة. كل مزايد يدفع رسم دخول {formatSAR(SITE.auctionFee)} للمنصة.
+                  </p>
+                </>
+              )}
               <label className="field">
                 <span className="label">الوصف</span>
                 <textarea className="input" rows={5} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="الحالة، مدة الاستخدام، الملحقات…" maxLength={500} />
@@ -191,32 +244,45 @@ export default function NewListing() {
 
           {step === 2 && (
             <>
-              <div className="field">
-                <span className="label">أغراض تبيها بداله</span>
-                <div className="want-input">
-                  <input className="input" value={want} onChange={(e) => setWant(e.target.value)} placeholder="اكتب غرض واضغط إضافة"
-                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addWant(want); } }} />
-                  <button type="button" className="btn btn-ghost" onClick={() => addWant(want)}><Plus size={16} /> إضافة</button>
-                </div>
-                <div className="chips chips-wrap">
-                  <AnimatePresence>
-                    {wants.map((w) => (
-                      <motion.button type="button" layout key={w} className="chip chip-solid chip-btn chip-lg" initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }}
-                        onClick={() => setWants(wants.filter((x) => x !== w))} aria-label={`حذف ${w}`}>
-                        {w} <X size={13} />
-                      </motion.button>
-                    ))}
-                  </AnimatePresence>
-                </div>
-                <div className="chips chips-wrap suggest">
-                  {SUGGEST.filter((x) => !wants.includes(x)).map((x) => <button type="button" key={x} className="chip chip-btn chip-dashed" onClick={() => addWant(x)}>+ {x}</button>)}
-                </div>
-              </div>
+              {kind === 'swap' && (
+                <>
+                  <div className="field">
+                    <span className="label">أغراض تبيها بداله</span>
+                    <div className="want-input">
+                      <input className="input" value={want} onChange={(e) => setWant(e.target.value)} placeholder="اكتب غرض واضغط إضافة"
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addWant(want); } }} />
+                      <button type="button" className="btn btn-ghost" onClick={() => addWant(want)}><Plus size={16} /> إضافة</button>
+                    </div>
+                    <div className="chips chips-wrap">
+                      <AnimatePresence>
+                        {wants.map((w) => (
+                          <motion.button type="button" layout key={w} className="chip chip-solid chip-btn chip-lg" initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }}
+                            onClick={() => setWants(wants.filter((x) => x !== w))} aria-label={`حذف ${w}`}>
+                            {w} <X size={13} />
+                          </motion.button>
+                        ))}
+                      </AnimatePresence>
+                    </div>
+                    <div className="chips chips-wrap suggest">
+                      {SUGGEST.filter((x) => !wants.includes(x)).map((x) => <button type="button" key={x} className="chip chip-btn chip-dashed" onClick={() => addWant(x)}>+ {x}</button>)}
+                    </div>
+                  </div>
+                  <button type="button" className="toggle" role="switch" aria-checked={open} onClick={() => setOpen(!open)}>
+                    <span className={`switch ${open ? 'is-on' : ''}`}><motion.span layout transition={{ type: 'spring', stiffness: 500, damping: 32 }} /></span>
+                    <span><strong>استقبل أي عروض ثانية</strong><small>خلّ الناس يفاجئونك بعروض ما خطرت على بالك.</small></span>
+                  </button>
+                </>
+              )}
 
-              <button type="button" className="toggle" role="switch" aria-checked={open} onClick={() => setOpen(!open)}>
-                <span className={`switch ${open ? 'is-on' : ''}`}><motion.span layout transition={{ type: 'spring', stiffness: 500, damping: 32 }} /></span>
-                <span><strong>استقبل أي عروض ثانية</strong><small>خلّ الناس يفاجئونك بعروض ما خطرت على بالك.</small></span>
-              </button>
+              {kind !== 'swap' && (
+                <div className="review">
+                  <span className="label">ملخص عرضك</span>
+                  <strong>{title}</strong>
+                  <span>
+                    {kind === 'sale' ? `للبيع بـ ${formatSAR(amount)}` : `مزاد يبدأ من ${formatSAR(amount)} · أقل زيادة ${formatSAR(increment)} · المدة ${DURATIONS.find((d) => d.days === days)?.label}`}
+                  </span>
+                </div>
+              )}
 
               <div className="row">
                 <label className="field">
@@ -228,7 +294,10 @@ export default function NewListing() {
                   <input className="input" dir="ltr" inputMode="tel" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} placeholder="05XXXXXXXX" />
                 </label>
               </div>
-              <p className="hint">رقمك ما يظهر إلا للي تقبل عرضه.</p>
+              <p className="hint">
+                {kind === 'auction' ? 'رقمك ما يظهر إلا للفائز بعد انتهاء المزاد.' : 'رقمك ما يظهر إلا للي تقبل عرضه.'} بنشر العرض أنت توافق على{' '}
+                <Link href="/policies/terms" target="_blank">الشروط والأحكام</Link>.
+              </p>
             </>
           )}
         </motion.div>
@@ -239,7 +308,9 @@ export default function NewListing() {
         {step < 2 ? (
           <button className="btn btn-primary btn-lg" disabled={!ok} onClick={() => go(1)}>التالي <ArrowLeft size={18} /></button>
         ) : (
-          <motion.button className="btn btn-primary btn-lg" disabled={!ok || busy} onClick={publish} whileTap={{ scale: 0.97 }}>{busy ? 'جاري النشر…' : 'انشر العرض'} <Check size={18} /></motion.button>
+          <motion.button className="btn btn-primary btn-lg" disabled={!ok || busy} onClick={publish} whileTap={{ scale: 0.97 }}>
+            {busy ? 'جاري النشر…' : kind === 'auction' ? 'ابدأ المزاد' : 'انشر العرض'} <Check size={18} />
+          </motion.button>
         )}
       </div>
     </div>

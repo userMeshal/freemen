@@ -31,8 +31,26 @@ export const VALUE_TIERS = [
   'أكثر من 15,000',
 ];
 
+export type Kind = 'swap' | 'sale' | 'auction';
+
+export const KINDS: { id: Kind; name: string; verb: string }[] = [
+  { id: 'swap', name: 'بدل', verb: 'بدّل' },
+  { id: 'sale', name: 'بيع', verb: 'بِع' },
+  { id: 'auction', name: 'مزاد', verb: 'زاوِد' },
+];
+
 export type Listing = {
   id: string;
+  /** بدل / بيع بسعر ثابت / مزاد */
+  kind: Kind;
+  /** سعر البيع، أو سعر بداية المزاد */
+  price?: number;
+  minIncrement?: number;
+  /** نهاية المزاد */
+  endsAt?: number;
+  currentBid?: number;
+  topBidder?: string;
+  bidsCount?: number;
   title: string;
   category: string;
   condition: string;
@@ -53,8 +71,26 @@ export type Listing = {
   offersCount?: number;
 };
 
+export type Bid = { id: string; listingId: string; bidderId: string; bidderName: string; amount: number; createdAt: number };
+
+/** طلب دخول مزاد: المستخدم يحوّل الرسم بنكياً والمشرف يتحقق ويفعّل */
+export type Entry = {
+  id: string;
+  listingId: string;
+  userId: string;
+  userName?: string;
+  listingTitle?: string;
+  senderName: string;
+  reference: string;
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: number;
+  demo?: boolean;
+};
+
 export type Offer = {
   id: string;
+  /** عرض بدل (غرض ± مبلغ) أو عرض شراء (مبلغ فقط) */
+  kind?: 'swap' | 'buy';
   listingId: string;
   fromId: string;
   fromName: string;
@@ -80,7 +116,7 @@ const s = (
   wants: string[], ownerName: string, hoursAgo: number, seedOffers: number, description: string,
   openToOffers = true,
 ): Listing => ({
-  id: `s${n}`, title, category, condition, city, valueTier, wants, ownerName, description, openToOffers,
+  id: `s${n}`, kind: 'swap', title, category, condition, city, valueTier, wants, ownerName, description, openToOffers,
   images: [], ownerId: `seed-${n}`, createdAt: T0 - hoursAgo * H, seedOffers,
 });
 
@@ -119,6 +155,40 @@ export const SEED: Listing[] = [
     'M2، مع القلم والكيبورد. للدراسة والرسم.'),
 ];
 
+/** عروض بيع ومزادات نموذجية للوضع التجريبي */
+const extra = (base: Listing, patch: Partial<Listing>): Listing => ({ ...base, wants: [], openToOffers: false, ...patch });
+SEED.splice(
+  2, 0,
+  extra(s(17, 'ثلاجة سامسونج 18 قدم', 'furniture', 'مستعمل نظيف', 'الرياض', 2, [], 'أبو فيصل', 3, 4, 'ثلاجة بابين، شغّالة تمام، السبب الانتقال لبيت جديد.'), { kind: 'sale', price: 1400 }),
+  extra(s(18, 'رولكس ديت جست 36', 'fashion', 'مستعمل نظيف', 'جدة', 4, [], 'هاني', 6, 0, 'موديل 2019 مع العلبة والضمان. المزاد يبدأ من سعر رمزي.'), {
+    kind: 'auction', price: 15000, minIncrement: 500, endsAt: T0 + 26 * H, currentBid: 21500, bidsCount: 9, topBidder: 'seed-bidder-1',
+  }),
+  extra(s(19, 'بلايستيشن 5 برو', 'gaming', 'جديد', 'الدمام', 2, [], 'مهند', 8, 0, 'جديد بالكرتون ما انفتح.'), {
+    kind: 'auction', price: 1000, minIncrement: 50, endsAt: T0 + 5 * H, currentBid: 1850, bidsCount: 14, topBidder: 'seed-bidder-2',
+  }),
+  extra(s(20, 'آيباد اير M2 مع القلم', 'electronics', 'شبه جديد', 'مكة المكرمة', 2, [], 'ريما', 11, 2, 'استخدام ثلاث شهور، مع القلم والحافظة.'), { kind: 'sale', price: 2100 }),
+  extra(s(21, 'لوحة خط عربي أصلية', 'collectibles', 'جديد', 'المدينة المنورة', 2, [], 'الخطاط سالم', 15, 0, 'لوحة بخط الثلث، حبر على ورق مقهّر، مقاس 70×50.'), {
+    kind: 'auction', price: 500, minIncrement: 50, endsAt: T0 + 50 * H, bidsCount: 0,
+  }),
+);
+
+/** الوقت المتبقي للمزاد بصيغة قصيرة */
+export function timeLeft(endsAt: number, now = Date.now()) {
+  const ms = endsAt - now;
+  if (ms <= 0) return 'انتهى';
+  const s = Math.floor(ms / 1000), d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
+  if (d > 0) return `${d} يوم ${h} س`;
+  if (h > 0) return `${h} س ${m} د`;
+  if (m > 0) return `${m} د ${s % 60} ث`;
+  return `${s} ث`;
+}
+
+export const auctionEnded = (l: Pick<Listing, 'endsAt'>, now = Date.now()) => !!l.endsAt && l.endsAt <= now;
+
+/** أقل مزايدة مقبولة الآن */
+export const minNextBid = (l: Pick<Listing, 'price' | 'currentBid' | 'minIncrement'>) =>
+  l.currentBid == null ? l.price ?? 1 : l.currentBid + (l.minIncrement ?? 10);
+
 export const catById = (id: string) => CATEGORIES.find((c) => c.id === id) ?? CATEGORIES[0];
 
 export function timeAgo(ts: number) {
@@ -141,7 +211,7 @@ export const tierOf = (value: number) => {
   return i === -1 ? 4 : i;
 };
 
-export const listingValue = (l: Pick<Listing, 'estValue' | 'valueTier'>) => l.estValue ?? TIER_MID[l.valueTier] ?? TIER_MID[1];
+export const listingValue = (l: Pick<Listing, 'estValue' | 'valueTier' | 'price'>) => l.estValue ?? l.price ?? TIER_MID[l.valueTier] ?? TIER_MID[1];
 
 /** قيمة عرض البدل كاملة = قيمة الغرض + المبلغ المضاف */
 export const offerValue = (o: Pick<Offer, 'estValue' | 'valueTier' | 'cash'>) =>

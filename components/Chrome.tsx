@@ -9,8 +9,8 @@ import { StoreProvider, useStore } from '@/lib/store';
 import { EASE, Logo, Toasts } from './ui';
 
 const LINKS = [
-  { href: '/browse', label: 'تصفّح العروض' },
-  { href: '/#how', label: 'كيف يشتغل' },
+  { href: '/browse', label: 'السوق' },
+  { href: '/browse?kind=auction', label: 'المزادات' },
   { href: '/offers', label: 'عروضي' },
 ];
 
@@ -43,9 +43,9 @@ function ThemeToggle() {
 
 function Nav() {
   const pathname = usePathname();
-  const { offers, listings, me, cloud, authed } = useStore();
+  const { offers, listings, me, cloud, authed, isAdmin } = useStore();
   const guest = cloud && !authed;
-  const links = guest ? [...LINKS.slice(0, 2), { href: '/login', label: 'دخول' }] : LINKS;
+  const links = guest ? [...LINKS.slice(0, 2), { href: '/login', label: 'دخول' }] : isAdmin ? [...LINKS, { href: '/admin', label: 'الإدارة' }] : LINKS;
   const [open, setOpen] = useState(false);
   const [hidden, setHidden] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -120,11 +120,12 @@ function Footer() {
       <div className="container footer-grid">
         <div>
           <Logo size={32} />
-          <p className="footer-tag">سوق المقايضة السعودي.<br />غرض بغرض — والفرق يتعدّل.</p>
+          <p className="footer-tag">بدل، بيع، ومزاد.<br />سوق واحد لكل أغراضك.</p>
         </div>
         <div className="footer-col">
           <h4>المنصة</h4>
-          <Link href="/browse">تصفّح العروض</Link>
+          <Link href="/browse">السوق</Link>
+          <Link href="/browse?kind=auction">المزادات</Link>
           <Link href="/new">اعرض غرضك</Link>
           <Link href="/offers">عروضي</Link>
         </div>

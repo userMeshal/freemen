@@ -6,13 +6,14 @@ import { motion, useScroll, useTransform, type MotionValue } from 'framer-motion
 import { ArrowLeft, Camera, Handshake, MessagesSquare, Scale, ShieldCheck, Sparkles, Wallet } from 'lucide-react';
 import HeroSwap from '@/components/HeroSwap';
 import { CategoryIcon, Counter, EASE, ListingCard, Reveal } from '@/components/ui';
-import { CATEGORIES, CITIES } from '@/lib/data';
+import { CATEGORIES, CITIES, auctionEnded } from '@/lib/data';
+import { SITE } from '@/lib/site';
 import { useStore } from '@/lib/store';
 
-const HEADLINE = ['بدّل', 'اللي', 'عندك', 'باللي', 'تبيه.'];
+const HEADLINE = ['بدّل.', 'بِع.', 'زاوِد.'];
 
 const MANIFESTO =
-  'في كل بيت أغراض قيمتها محفوظة وفايدتها واقفة. تليته يحرّكها: غرضك يروح للي يحتاجه، وحاجتك تجيك من اللي ما عاد يحتاجها. غرض بغرض، ولو اختلفت القيمة يكمّلها مبلغ بسيط.';
+  'في كل بيت أغراض قيمتها محفوظة وفايدتها واقفة. تليته يحرّكها بثلاث طرق: بدّلها بغرض تحتاجه، بيعها بالسعر اللي تحدده، أو حطها بمزاد وأعلى مزايدة تاخذها.';
 
 function Word({ children, progress, range }: { children: string; progress: MotionValue<number>; range: [number, number] }) {
   const opacity = useTransform(progress, range, [0.12, 1]);
@@ -35,9 +36,9 @@ function Manifesto() {
 }
 
 const STEPS = [
-  { icon: Camera, title: 'اعرض غرضك', text: 'صوّره، اكتب وصفه، وحدّد وش تبي بداله — أو خلّها مفتوحة لكل العروض.' },
-  { icon: MessagesSquare, title: 'استقبل عروض البدل', text: 'الناس يعرضون عليك أغراضهم. ميزان البدل يوضّح لك تقارب القيمة.' },
-  { icon: Handshake, title: 'اتفقوا وبدّلوا', text: 'اقبل العرض اللي يعجبك، تواصلوا، وتقابلوا في مكان عام. خلاص.' },
+  { icon: Camera, title: 'اعرض غرضك', text: 'صوّره واختر الطريقة: بدل بغرض ثاني، بيع بسعر ثابت، أو مزاد.' },
+  { icon: MessagesSquare, title: 'استقبل العروض', text: 'عروض بدل، طلبات شراء، أو مزايدات — كلها توصلك في مكان واحد.' },
+  { icon: Handshake, title: 'اتفقوا وسلّموا', text: 'اقبل العرض اللي يعجبك، تواصلوا، وتقابلوا في مكان عام. خلاص.' },
 ];
 
 function How() {
@@ -47,7 +48,7 @@ function How() {
     <section className="section container" id="how">
       <Reveal>
         <span className="eyebrow">كيف يشتغل</span>
-        <h2 className="h2">ثلاث خطوات.<br />وصار البدل.</h2>
+        <h2 className="h2">ثلاث خطوات.<br />وخلصت.</h2>
       </Reveal>
       <div className="steps" ref={ref}>
         <div className="steps-line"><motion.span style={{ scaleX: scrollYProgress }} /></div>
@@ -71,14 +72,14 @@ function Bento() {
     <section className="section container">
       <Reveal>
         <span className="eyebrow">ليش تليته</span>
-        <h2 className="h2">سوق أساسه البدل،<br />مو البيع.</h2>
+        <h2 className="h2">ثلاث طرق،<br />وسوق واحد.</h2>
       </Reveal>
       <div className="bento">
         <Reveal className="tile tile-dark tile-wide">
           <Wallet size={26} strokeWidth={1.5} />
           <div className="tile-big"><Counter to={0} /> <small>ريال عمولة</small></div>
-          <h3>غرض بغرض — والفرق يتعدّل</h3>
-          <p>القيمة في الغرض نفسه. ولو غرضك أقل قيمة، زد عليه مبلغ وكمّل البدلة.</p>
+          <h3>بدون عمولة على البدل والبيع</h3>
+          <p>المنصة ما تاخذ نسبة من بدلتك ولا بيعتك. الرسم الوحيد: {SITE.auctionFee} ريال لدخول المزاد.</p>
           <div className="tile-glow" />
         </Reveal>
         <Reveal className="tile" delay={0.08}>
@@ -122,6 +123,7 @@ function Bento() {
 
 export default function Home() {
   const { all, ready } = useStore();
+  const liveAuctions = all.filter((l) => l.kind === 'auction' && !auctionEnded(l)).slice(0, 4);
   const heroRef = useRef<HTMLElement>(null);
   const { scrollYProgress } = useScroll({ target: heroRef, offset: ['start start', 'end start'] });
   const orbY = useTransform(scrollYProgress, [0, 1], [0, 180]);
@@ -136,7 +138,7 @@ export default function Home() {
         <div className="container hero-grid">
           <div className="hero-copy">
             <motion.span className="pill" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: EASE }}>
-              <span className="pill-dot" /> سوق المقايضة السعودي
+              <span className="pill-dot" /> بدل · بيع · مزاد
             </motion.span>
             <h1 className="h1" aria-label={HEADLINE.join(' ')}>
               {HEADLINE.map((w, i) => (
@@ -148,7 +150,7 @@ export default function Home() {
               ))}
             </h1>
             <motion.p className="lead" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: EASE, delay: 0.65 }}>
-              اعرض غرضك، استقبل عروض البدل، واتفقوا. غرض بغرض وخدمة بخدمة — ولو فيه فرق بالقيمة يتعدّل بمبلغ.
+              سوق واحد لكل أغراضك: بدّلها بغرض ثاني، بيعها بسعرك، أو اعرضها بمزاد وخلّ الناس يزاودون.
             </motion.p>
             <motion.div className="hero-cta" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: EASE, delay: 0.8 }}>
               <Link href="/new" className="btn btn-primary btn-lg">اعرض غرضك <ArrowLeft size={18} /></Link>
@@ -174,11 +176,26 @@ export default function Home() {
       <Manifesto />
       <How />
 
+      {liveAuctions.length > 0 && (
+        <section className="section container">
+          <Reveal className="section-head">
+            <div>
+              <span className="eyebrow">مزادات شغّالة</span>
+              <h2 className="h2">زاوِد قبل ما يخلص الوقت.</h2>
+            </div>
+            <Link href="/browse?kind=auction" className="btn btn-ghost">كل المزادات <ArrowLeft size={16} /></Link>
+          </Reveal>
+          <div className="grid">
+            {liveAuctions.map((l, i) => <ListingCard key={l.id} listing={l} index={i} />)}
+          </div>
+        </section>
+      )}
+
       <section className="section container">
         <Reveal className="section-head">
           <div>
             <span className="eyebrow">معروض الآن</span>
-            <h2 className="h2">أغراض تنتظر بدلها.</h2>
+            <h2 className="h2">جديد السوق.</h2>
           </div>
           <Link href="/browse" className="btn btn-ghost">كل العروض <ArrowLeft size={16} /></Link>
         </Reveal>
@@ -199,10 +216,10 @@ export default function Home() {
       <section className="section container">
         <div className="stats">
           {[
-            { n: 0, s: '', l: 'ريال عمولة' },
-            { n: CATEGORIES.length, s: '', l: 'قسم للبدل' },
+            { n: 3, s: '', l: 'طرق للعرض' },
+            { n: CATEGORIES.length, s: '', l: 'قسم' },
             { n: 13, s: '', l: 'منطقة في المملكة' },
-            { n: 3, s: '', l: 'خطوات وتبدّل' },
+            { n: SITE.auctionFee, s: '', l: 'ريال دخول المزاد' },
           ].map((x, i) => (
             <Reveal key={x.l} delay={i * 0.08} className="stat">
               <strong><Counter to={x.n} suffix={x.s} /></strong>
@@ -217,7 +234,7 @@ export default function Home() {
           <div className="cta-orbs" aria-hidden><span className="orb orb-1" /><span className="orb orb-2" /></div>
           <h2>عندك شي ما عاد تحتاجه؟</h2>
           <p>غيرك يدوّر عليه — وعنده اللي تدوّر عليه.</p>
-          <Link href="/new" className="btn btn-light btn-lg">ابدأ أول بدلة <ArrowLeft size={18} /></Link>
+          <Link href="/new" className="btn btn-light btn-lg">اعرض أول غرض <ArrowLeft size={18} /></Link>
         </Reveal>
       </section>
     </>

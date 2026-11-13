@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import type { Listing, Offer } from './data';
+import type { Bid, Entry, Listing, Offer } from './data';
 
 export type Me = { id: string; name: string; city: string; whatsapp: string };
 export type Toast = { id: number; text: string };
@@ -32,6 +32,19 @@ export type Ctx = {
   setOfferStatus: (id: string, status: Offer['status']) => Promise<void>;
   /** المرسل يسحب عرضه قبل الرد عليه */
   withdrawOffer: (id: string) => Promise<void>;
+  /** طلباتي لدخول المزادات */
+  entries: Entry[];
+  /** يرسل طلب دخول مزاد بعد تحويل الرسم */
+  requestEntry: (listingId: string, senderName: string, reference: string) => Promise<void>;
+  loadBids: (listingId: string) => Promise<Bid[]>;
+  /** يزايد — يرجّع نص الخطأ أو null */
+  placeBid: (listingId: string, amount: number) => Promise<string | null>;
+  /** يحدّث عرضاً واحداً من القاعدة (سعر المزاد الحالي ووقته) */
+  refreshListing: (id: string) => Promise<void>;
+  isAdmin: boolean;
+  /** للمشرف: طلبات الدخول اللي تنتظر التحقق من التحويل */
+  loadPendingEntries: () => Promise<Entry[]>;
+  reviewEntry: (id: string, status: 'approved' | 'rejected') => Promise<void>;
   toggleFav: (id: string) => void;
   offersFor: (listingId: string) => Offer[];
   /** رقم واتساب الطرف الثاني — يظهر فقط بعد قبول عرض بينكم */
