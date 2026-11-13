@@ -8,7 +8,7 @@ import { ArrowRight, Clock, Heart, MapPin, Repeat2, ShieldCheck, Trash2 } from '
 import OfferModal from '@/components/OfferModal';
 import OfferRow from '@/components/OfferRow';
 import { CategoryIcon, EASE, ListingArt, ListingCard } from '@/components/ui';
-import { VALUE_TIERS, catById, timeAgo } from '@/lib/data';
+import { catById, formatSAR, listingValue, timeAgo } from '@/lib/data';
 import { useStore } from '@/lib/store';
 
 export default function ListingPage({ params }: { params: { id: string } }) {
@@ -73,7 +73,7 @@ export default function ListingPage({ params }: { params: { id: string } }) {
               {listing.wants.map((w) => <span key={w} className="chip chip-solid">{w}</span>)}
               {listing.openToOffers && <span className="chip chip-dashed">+ يستقبل عروض ثانية</span>}
             </div>
-            <small>القيمة التقريبية: {VALUE_TIERS[listing.valueTier]} ريال — للمقارنة فقط، البدل بدون فلوس.</small>
+            <small>القيمة التقريبية: {formatSAR(listingValue(listing))} — تقدر تعرض غرض بقيمة قريبة، أو غرض وتزيد عليه مبلغ.</small>
           </div>
 
           <div className="detail-actions">

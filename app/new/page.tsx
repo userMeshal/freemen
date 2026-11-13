@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowLeft, ArrowRight, Check, ImagePlus, Plus, X } from 'lucide-react';
 import { CategoryIcon, EASE } from '@/components/ui';
-import { CATEGORIES, CITIES, CONDITIONS, VALUE_TIERS, type Listing } from '@/lib/data';
+import { CATEGORIES, CITIES, CONDITIONS, parseAmount, tierOf, type Listing } from '@/lib/data';
 import { fileToDataUrl, useStore } from '@/lib/store';
 
 const STEP_TITLES = ['وش عندك؟', 'عطنا التفاصيل', 'وش تبي بداله؟'];
@@ -23,7 +23,8 @@ export default function NewListing() {
   const [images, setImages] = useState<string[]>([]);
   const [condition, setCondition] = useState(CONDITIONS[1]);
   const [city, setCity] = useState(me.city || CITIES[0]);
-  const [tier, setTier] = useState(1);
+  const [valueText, setValueText] = useState('');
+  const value = parseAmount(valueText);
   const [description, setDescription] = useState('');
   const [wants, setWants] = useState<string[]>([]);
   const [want, setWant] = useState('');
@@ -33,7 +34,7 @@ export default function NewListing() {
 
   const ok = [
     title.trim().length > 2 && !!category,
-    true,
+    value > 0,
     (wants.length > 0 || open) && name.trim().length > 1,
   ][step];
 
@@ -55,7 +56,7 @@ export default function NewListing() {
       await setMe({ name: name.trim(), city, whatsapp: whatsapp.trim() });
       const l = await addListing({
       title: title.trim(), category, condition, city, description: description.trim(), wants, openToOffers: open,
-      valueTier: tier, images, ownerName: name.trim(), whatsapp: whatsapp.trim() || undefined,
+      valueTier: tierOf(value), estValue: value, images, ownerName: name.trim(), whatsapp: whatsapp.trim() || undefined,
     });
       setDone(l);
       toast('انتشر عرضك');
@@ -177,10 +178,10 @@ export default function NewListing() {
                 </label>
                 <label className="field">
                   <span className="label">القيمة التقريبية (ريال)</span>
-                  <select className="select" value={tier} onChange={(e) => setTier(Number(e.target.value))}>{VALUE_TIERS.map((v, i) => <option key={v} value={i}>{v}</option>)}</select>
+                  <input className="input" dir="ltr" inputMode="numeric" value={valueText} onChange={(e) => setValueText(e.target.value)} placeholder="مثال: 2500" />
                 </label>
               </div>
-              <p className="hint">القيمة ما تنعرض كسعر — نستخدمها بس في «ميزان البدل» عشان تكون العروض عادلة.</p>
+              <p className="hint">قيمة تقريبية تكفي — تظهر في صفحة العرض ويستخدمها «ميزان البدل» عشان توصلك عروض عادلة.</p>
               <label className="field">
                 <span className="label">الوصف</span>
                 <textarea className="input" rows={5} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="الحالة، مدة الاستخدام، الملحقات…" maxLength={500} />

@@ -12,7 +12,7 @@ import { useStore } from '@/lib/store';
 const HEADLINE = ['بدّل', 'اللي', 'عندك', 'باللي', 'تبيه.'];
 
 const MANIFESTO =
-  'في كل بيت أغراض قيمتها محفوظة وفايدتها واقفة. بدلني يحرّكها: غرضك يروح للي يحتاجه، وحاجتك تجيك من اللي ما عاد يحتاجها. بدون بيع، بدون شراء، بدون ولا ريال.';
+  'في كل بيت أغراض قيمتها محفوظة وفايدتها واقفة. بدلني يحرّكها: غرضك يروح للي يحتاجه، وحاجتك تجيك من اللي ما عاد يحتاجها. غرض بغرض، ولو اختلفت القيمة يكمّلها مبلغ بسيط.';
 
 function Word({ children, progress, range }: { children: string; progress: MotionValue<number>; range: [number, number] }) {
   const opacity = useTransform(progress, range, [0.12, 1]);
@@ -71,14 +71,14 @@ function Bento() {
     <section className="section container">
       <Reveal>
         <span className="eyebrow">ليش بدلني</span>
-        <h2 className="h2">سوق كامل<br />ما يبي فلوسك.</h2>
+        <h2 className="h2">سوق أساسه البدل،<br />مو البيع.</h2>
       </Reveal>
       <div className="bento">
         <Reveal className="tile tile-dark tile-wide">
           <Wallet size={26} strokeWidth={1.5} />
-          <div className="tile-big"><Counter to={0} /> <small>ريال</small></div>
-          <h3>بدون مال نهائياً</h3>
-          <p>لا أسعار، لا عمولة، لا رسوم. القيمة هنا في الغرض نفسه.</p>
+          <div className="tile-big"><Counter to={0} /> <small>ريال عمولة</small></div>
+          <h3>غرض بغرض — والفرق يتعدّل</h3>
+          <p>القيمة في الغرض نفسه. ولو غرضك أقل قيمة، زد عليه مبلغ وكمّل البدلة.</p>
           <div className="tile-glow" />
         </Reveal>
         <Reveal className="tile" delay={0.08}>
@@ -89,7 +89,7 @@ function Bento() {
             </motion.div>
           </div>
           <h3>ميزان البدل</h3>
-          <p>يوضّح تقارب قيمة الغرضين عشان البدلة تكون عادلة للطرفين.</p>
+          <p>يحسب قيمة الغرض والمبلغ المضاف ويوضّح لك إذا البدلة عادلة للطرفين.</p>
         </Reveal>
         <Reveal className="tile tile-tagged" delay={0.14}>
           <Sparkles size={26} strokeWidth={1.5} />
@@ -104,7 +104,7 @@ function Bento() {
         <Reveal className="tile" delay={0.08}>
           <ShieldCheck size={26} strokeWidth={1.5} />
           <h3>بدل بأمان</h3>
-          <p>ما فيه تحويلات ولا دفع مقدّم. تقابلوا، افحصوا، وبدّلوا يد بيد.</p>
+          <p>تقابلوا في مكان عام، افحصوا الغرض، وسلّموا يد بيد. لا تحوّل مبلغ قبل ما تستلم.</p>
         </Reveal>
         <Reveal className="tile tile-wide tile-cities" delay={0.14}>
           <h3>من تبوك إلى جازان</h3>
@@ -148,7 +148,7 @@ export default function Home() {
               ))}
             </h1>
             <motion.p className="lead" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: EASE, delay: 0.65 }}>
-              اعرض غرضك، استقبل عروض البدل، واتفقوا. غرض بغرض وخدمة بخدمة — بدون ولا ريال.
+              اعرض غرضك، استقبل عروض البدل، واتفقوا. غرض بغرض وخدمة بخدمة — ولو فيه فرق بالقيمة يتعدّل بمبلغ.
             </motion.p>
             <motion.div className="hero-cta" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: EASE, delay: 0.8 }}>
               <Link href="/new" className="btn btn-primary btn-lg">اعرض غرضك <ArrowLeft size={18} /></Link>

@@ -18,12 +18,12 @@ const blankMe: Me = { id: '', name: '', city: 'الرياض', whatsapp: '' };
 
 const toListing = (r: any): Listing => ({
   id: r.id, title: r.title, category: r.category, condition: r.condition, city: r.city, description: r.description ?? '',
-  wants: r.wants ?? [], openToOffers: r.open_to_offers, valueTier: r.value_tier, images: r.images ?? [],
+  wants: r.wants ?? [], openToOffers: r.open_to_offers, valueTier: r.value_tier, estValue: r.est_value ?? undefined, images: r.images ?? [],
   ownerId: r.owner_id, ownerName: r.owner?.name ?? 'مستخدم', createdAt: +new Date(r.created_at), offersCount: r.offers_count ?? 0,
 });
 const toOffer = (r: any): Offer => ({
   id: r.id, listingId: r.listing_id, fromId: r.from_id, fromName: r.sender?.name ?? 'مستخدم', itemTitle: r.item_title,
-  itemCategory: r.item_category, itemCondition: r.item_condition, valueTier: r.value_tier, note: r.note ?? '',
+  itemCategory: r.item_category, itemCondition: r.item_condition, valueTier: r.value_tier, estValue: r.est_value ?? undefined, cash: r.cash ?? 0, note: r.note ?? '',
   image: r.image ?? undefined, status: r.status, createdAt: +new Date(r.created_at),
 });
 
@@ -159,7 +159,7 @@ export function CloudProvider({ children }: { children: React.ReactNode }) {
         .from('listings')
         .insert({
           owner_id, title: l.title, category: l.category, condition: l.condition, city: l.city, description: l.description,
-          wants: l.wants, open_to_offers: l.openToOffers, value_tier: l.valueTier, images,
+          wants: l.wants, open_to_offers: l.openToOffers, value_tier: l.valueTier, est_value: l.estValue ?? null, images,
         })
         .select(LISTING_COLS)
         .single();
@@ -183,7 +183,7 @@ export function CloudProvider({ children }: { children: React.ReactNode }) {
         .from('offers')
         .insert({
           listing_id: o.listingId, from_id, item_title: o.itemTitle, item_category: o.itemCategory,
-          item_condition: o.itemCondition, value_tier: o.valueTier, note: o.note, image,
+          item_condition: o.itemCondition, value_tier: o.valueTier, est_value: o.estValue ?? null, cash: o.cash ?? 0, note: o.note, image,
         })
         .select(OFFER_COLS)
         .single();

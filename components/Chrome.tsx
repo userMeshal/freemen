@@ -120,7 +120,7 @@ function Footer() {
       <div className="container footer-grid">
         <div>
           <Logo size={32} />
-          <p className="footer-tag">سوق المقايضة السعودي.<br />غرض بغرض — بدون ولا ريال.</p>
+          <p className="footer-tag">سوق المقايضة السعودي.<br />غرض بغرض — والفرق يتعدّل.</p>
         </div>
         <div className="footer-col">
           <h4>المنصة</h4>
@@ -132,7 +132,7 @@ function Footer() {
           <h4>بدل بأمان</h4>
           <span>قابِل في مكان عام</span>
           <span>افحص الغرض قبل البدل</span>
-          <span>لا تحوّل فلوس لأحد</span>
+          <span>لا تحوّل مبلغ قبل الاستلام</span>
         </div>
       </div>
       <div className="container footer-bottom">

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { SEED, type Listing, type Offer } from './data';
+import { SEED, listingValue, tierOf, type Listing, type Offer } from './data';
 import { StoreCtx, useToasts, type Ctx, type Me } from './ctx';
 
 /** الوضع التجريبي: كل شي ينحفظ في متصفح الزائر، مع عروض نموذجية وردود محاكاة */
@@ -9,6 +9,13 @@ type State = { me: Me; listings: Listing[]; offers: Offer[]; favs: string[] };
 
 const KEY = 'badal:v1';
 const uid = () => Math.random().toString(36).slice(2, 10);
+/** العرض التجريبي الثاني غرض أقل قيمة مع مبلغ يعدّل الفرق */
+function demoValue(listing: Listing, i: number) {
+  const target = listingValue(listing);
+  const round = (n: number) => Math.max(50, Math.round(n / 50) * 50);
+  const estValue = round(i ? target * 0.7 : target * 1.05);
+  return { estValue, valueTier: tierOf(estValue), cash: i ? round(target * 0.25) : 0 };
+}
 const empty: State = { me: { id: '', name: '', city: 'الرياض', whatsapp: '' }, listings: [], offers: [], favs: [] };
 
 export function LocalProvider({ children }: { children: React.ReactNode }) {
@@ -53,7 +60,7 @@ export function LocalProvider({ children }: { children: React.ReactNode }) {
               ? {
                   ...s,
                   offers: [
-                    { ...d, id: `o${uid()}`, listingId: listing.id, fromId: `demo-${i}`, valueTier: Math.max(0, Math.min(4, listing.valueTier + (i ? -1 : 0))), status: 'pending', createdAt: Date.now(), demo: true },
+                    { ...d, id: `o${uid()}`, listingId: listing.id, fromId: `demo-${i}`, ...demoValue(listing, i), status: 'pending', createdAt: Date.now(), demo: true },
                     ...s.offers,
                   ],
                 }

@@ -52,6 +52,11 @@ create table if not exists public.offers (
 );
 create index if not exists offers_from_idx on public.offers (from_id);
 
+-- ───────── تحديث: القيمة بالريال والمبلغ المضاف في عروض البدل ─────────
+alter table public.listings add column if not exists est_value integer check (est_value between 1 and 10000000);
+alter table public.offers add column if not exists est_value integer check (est_value between 1 and 10000000);
+alter table public.offers add column if not exists cash integer not null default 0 check (cash between 0 and 10000000);
+
 -- ───────── دوال مساعدة ─────────
 -- إنشاء ملف المستخدم تلقائياً عند التسجيل
 create or replace function public.handle_new_user()
@@ -148,8 +153,8 @@ create policy "offers withdraw" on public.offers for delete to authenticated usi
 revoke update on public.offers from anon, authenticated;
 grant update (status) on public.offers to authenticated;
 revoke insert, update on public.listings from anon, authenticated;
-grant insert (owner_id, title, category, condition, city, description, wants, open_to_offers, value_tier, images) on public.listings to authenticated;
-grant update (title, category, condition, city, description, wants, open_to_offers, value_tier, images) on public.listings to authenticated;
+grant insert (owner_id, title, category, condition, city, description, wants, open_to_offers, value_tier, est_value, images) on public.listings to authenticated;
+grant update (title, category, condition, city, description, wants, open_to_offers, value_tier, est_value, images) on public.listings to authenticated;
 
 -- ───────── تخزين الصور ─────────
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)

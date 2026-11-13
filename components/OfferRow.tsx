@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Check, MessageCircle, Repeat2, X } from 'lucide-react';
-import { fairness, timeAgo, type Listing, type Offer } from '@/lib/data';
+import { fairness, formatSAR, listingValue, offerValue, timeAgo, type Listing, type Offer } from '@/lib/data';
 import { useStore } from '@/lib/store';
 import { CategoryIcon, EASE } from './ui';
 
@@ -11,7 +11,7 @@ const STATUS = { pending: 'بانتظار الرد', accepted: 'تم القبو�
 
 export default function OfferRow({ offer, listing, role }: { offer: Offer; listing?: Listing; role: 'owner' | 'sender' }) {
   const { setOfferStatus, toast, contactFor } = useStore();
-  const f = listing ? fairness(listing.valueTier, offer.valueTier) : null;
+  const f = listing ? fairness(listingValue(listing), offerValue(offer)) : null;
   const other = role === 'sender' ? listing?.ownerId : offer.fromId;
   const wa = (other ? contactFor(other) : undefined)?.replace(/\D/g, '').replace(/^0/, '966');
   const decide = (status: 'accepted' | 'rejected') =>
@@ -35,6 +35,7 @@ export default function OfferRow({ offer, listing, role }: { offer: Offer; listi
       <div className="offer-main">
         <div className="offer-top">
           <strong>{offer.itemTitle}</strong>
+          {!!offer.cash && <span className="cash-chip">+ {formatSAR(offer.cash)}</span>}
           <span className={`status status-${offer.status}`}>{STATUS[offer.status]}</span>
           {offer.demo && <span className="status status-demo">تجريبي</span>}
         </div>

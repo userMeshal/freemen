@@ -41,6 +41,8 @@ export type Listing = {
   wants: string[];
   openToOffers: boolean;
   valueTier: number;
+  /** القيمة التقريبية بالريال (العروض القديمة فيها الشريحة فقط) */
+  estValue?: number;
   images: string[];
   ownerId: string;
   ownerName: string;
@@ -60,6 +62,10 @@ export type Offer = {
   itemCategory: string;
   itemCondition: string;
   valueTier: number;
+  /** قيمة الغرض المعروض بالريال */
+  estValue?: number;
+  /** مبلغ نقدي يضيفه صاحب العرض فوق غرضه */
+  cash?: number;
   note: string;
   image?: string;
   status: 'pending' | 'accepted' | 'rejected';
@@ -126,9 +132,33 @@ export function timeAgo(ts: number) {
   return d === 1 ? 'أمس' : `قبل ${d} يوم`;
 }
 
-export function fairness(a: number, b: number) {
-  const d = Math.abs(a - b);
-  if (d === 0) return { label: 'قيمة متقاربة', level: 2 };
-  if (d === 1) return { label: 'فرق بسيط', level: 1 };
+const TIER_MID = [250, 1000, 3000, 10000, 20000];
+const TIER_MAX = [500, 1500, 5000, 15000];
+
+/** الشريحة المقابلة لقيمة بالريال */
+export const tierOf = (value: number) => {
+  const i = TIER_MAX.findIndex((max) => value < max);
+  return i === -1 ? 4 : i;
+};
+
+export const listingValue = (l: Pick<Listing, 'estValue' | 'valueTier'>) => l.estValue ?? TIER_MID[l.valueTier] ?? TIER_MID[1];
+
+/** قيمة عرض البدل كاملة = قيمة الغرض + المبلغ المضاف */
+export const offerValue = (o: Pick<Offer, 'estValue' | 'valueTier' | 'cash'>) =>
+  (o.estValue ?? TIER_MID[o.valueTier] ?? TIER_MID[1]) + (o.cash ?? 0);
+
+export const formatSAR = (n: number) => `${Math.round(n).toLocaleString('en-US')} ريال`;
+
+/** يقرأ رقم من حقل نصي — يقبل الأرقام العربية والفواصل */
+export function parseAmount(text: string) {
+  const digits = text.replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))).replace(/[^\d]/g, '');
+  return digits ? Math.min(Number(digits), 10_000_000) : 0;
+}
+
+/** يقارن قيمة الغرض المعروض (target) بقيمة عرض البدل (offered) */
+export function fairness(target: number, offered: number) {
+  const r = target > 0 ? offered / target : 1;
+  if (r >= 0.75 && r <= 1.34) return { label: 'قيمة متقاربة', level: 2 };
+  if (r >= 0.5 && r <= 2) return { label: 'فرق بسيط', level: 1 };
   return { label: 'فرق كبير بالقيمة', level: 0 };
 }
