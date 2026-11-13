@@ -8,6 +8,11 @@ export const SITE = {
   registration: '',
   /** رسم دخول المزاد بالريال — يُدفع بتحويل بنكي ويتحقق منه المشرف يدوياً */
   auctionFee: 5,
+  /** رسم عرض المزاد يدفعه صاحبه؛ بعد تأكيد الدفع يبدأ المزاد بعد startDelayMinutes */
+  listingFee: 19,
+  /** هذه المدد للعرض فقط — التطبيق الفعلي في supabase/schema.sql */
+  startDelayMinutes: 30,
+  entryCutoffMinutes: 5,
   /** الحساب البنكي اللي يتحوّل عليه الرسم. بدون IBAN يتعطّل طلب دخول المزادات. */
   bank: { holder: 'مشعل متعب مرسال الرشيدي', bankName: 'مصرف الراجحي', iban: 'SA09 8000 0547 6080 1600 4681' },
   policiesUpdated: '13 نوفمبر 2026',

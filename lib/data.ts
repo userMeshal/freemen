@@ -46,6 +46,9 @@ export type Listing = {
   /** سعر البيع، أو سعر بداية المزاد */
   price?: number;
   minIncrement?: number;
+  /** بداية المزاد: تتحدد بعد تأكيد دفع رسم العرض */
+  startsAt?: number;
+  durationMinutes?: number;
   /** نهاية المزاد */
   endsAt?: number;
   currentBid?: number;
@@ -79,6 +82,19 @@ export type Entry = {
   listingId: string;
   userId: string;
   userName?: string;
+  listingTitle?: string;
+  senderName: string;
+  reference: string;
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: number;
+  demo?: boolean;
+};
+
+/** رسم عرض المزاد: يدفعه صاحب المزاد ليتفعّل مزاده */
+export type Fee = {
+  listingId: string;
+  ownerId: string;
+  ownerName?: string;
   listingTitle?: string;
   senderName: string;
   reference: string;
@@ -161,14 +177,14 @@ SEED.splice(
   2, 0,
   extra(s(17, 'ثلاجة سامسونج 18 قدم', 'furniture', 'مستعمل نظيف', 'الرياض', 2, [], 'أبو فيصل', 3, 4, 'ثلاجة بابين، شغّالة تمام، السبب الانتقال لبيت جديد.'), { kind: 'sale', price: 1400 }),
   extra(s(18, 'رولكس ديت جست 36', 'fashion', 'مستعمل نظيف', 'جدة', 4, [], 'هاني', 6, 0, 'موديل 2019 مع العلبة والضمان. المزاد يبدأ من سعر رمزي.'), {
-    kind: 'auction', price: 15000, minIncrement: 500, endsAt: T0 + 26 * H, currentBid: 21500, bidsCount: 9, topBidder: 'seed-bidder-1',
+    kind: 'auction', price: 15000, minIncrement: 500, startsAt: T0 - 2 * H, endsAt: T0 + 26 * H, currentBid: 21500, bidsCount: 9, topBidder: 'seed-bidder-1',
   }),
   extra(s(19, 'بلايستيشن 5 برو', 'gaming', 'جديد', 'الدمام', 2, [], 'مهند', 8, 0, 'جديد بالكرتون ما انفتح.'), {
-    kind: 'auction', price: 1000, minIncrement: 50, endsAt: T0 + 5 * H, currentBid: 1850, bidsCount: 14, topBidder: 'seed-bidder-2',
+    kind: 'auction', price: 1000, minIncrement: 50, startsAt: T0 - H, endsAt: T0 + 5 * H, currentBid: 1850, bidsCount: 14, topBidder: 'seed-bidder-2',
   }),
   extra(s(20, 'آيباد اير M2 مع القلم', 'electronics', 'شبه جديد', 'مكة المكرمة', 2, [], 'ريما', 11, 2, 'استخدام ثلاث شهور، مع القلم والحافظة.'), { kind: 'sale', price: 2100 }),
   extra(s(21, 'لوحة خط عربي أصلية', 'collectibles', 'جديد', 'المدينة المنورة', 2, [], 'الخطاط سالم', 15, 0, 'لوحة بخط الثلث، حبر على ورق مقهّر، مقاس 70×50.'), {
-    kind: 'auction', price: 500, minIncrement: 50, endsAt: T0 + 50 * H, bidsCount: 0,
+    kind: 'auction', price: 500, minIncrement: 50, startsAt: T0 + 22 * 60_000, durationMinutes: 60, endsAt: T0 + 82 * 60_000, bidsCount: 0,
   }),
 );
 
@@ -184,6 +200,27 @@ export function timeLeft(endsAt: number, now = Date.now()) {
 }
 
 export const auctionEnded = (l: Pick<Listing, 'endsAt'>, now = Date.now()) => !!l.endsAt && l.endsAt <= now;
+
+export type Phase = 'unpaid' | 'upcoming' | 'live' | 'ended';
+
+/** مرحلة المزاد: بانتظار دفع رسم العرض ← قبل البداية (التسجيل) ← شغّال ← انتهى */
+export function auctionPhase(l: Pick<Listing, 'startsAt' | 'endsAt'>, now = Date.now()): Phase {
+  if (!l.endsAt) return 'unpaid';
+  if (l.endsAt <= now) return 'ended';
+  return l.startsAt && now < l.startsAt ? 'upcoming' : 'live';
+}
+
+/** التسجيل يقفل قبل بداية المزاد بدقائق (cutoff) */
+export const registrationCloses = (l: Pick<Listing, 'startsAt'>, cutoffMinutes: number) => (l.startsAt ?? 0) - cutoffMinutes * 60_000;
+
+/** سطر قصير يوصف حالة المزاد في البطاقات والقوائم */
+export function auctionStatus(l: Pick<Listing, 'startsAt' | 'endsAt'>, now = Date.now()) {
+  const phase = auctionPhase(l, now);
+  if (phase === 'unpaid') return 'بانتظار التفعيل';
+  if (phase === 'upcoming') return `يبدأ بعد ${timeLeft(l.startsAt!, now)}`;
+  if (phase === 'live') return `باقي ${timeLeft(l.endsAt!, now)}`;
+  return 'انتهى المزاد';
+}
 
 /** أقل مزايدة مقبولة الآن */
 export const minNextBid = (l: Pick<Listing, 'price' | 'currentBid' | 'minIncrement'>) =>

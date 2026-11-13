@@ -15,9 +15,10 @@ const KIND_CARDS: { id: Kind; icon: typeof Tag; title: string; text: string }[] 
   { id: 'auction', icon: Gavel, title: 'مزاد', text: 'حدّد سعر البداية والمدة، وأعلى مزايدة تفوز.' },
 ];
 const DURATIONS = [
-  { days: 1, label: 'يوم' },
-  { days: 3, label: '3 أيام' },
-  { days: 7, label: 'أسبوع' },
+  { minutes: 30, label: 'نص ساعة' },
+  { minutes: 60, label: 'ساعة' },
+  { minutes: 180, label: '3 ساعات' },
+  { minutes: 1440, label: 'يوم' },
 ];
 const SUGGEST = ['آيفون', 'بلايستيشن 5', 'ماك بوك', 'ساعة ذكية', 'دراجة', 'آيباد', 'كاميرا'];
 
@@ -36,7 +37,7 @@ export default function NewListing() {
   const [city, setCity] = useState(me.city || CITIES[0]);
   const [amountText, setAmountText] = useState('');
   const [stepText, setStepText] = useState('');
-  const [days, setDays] = useState(3);
+  const [minutes, setMinutes] = useState(60);
   const [description, setDescription] = useState('');
   const [wants, setWants] = useState<string[]>([]);
   const [want, setWant] = useState('');
@@ -78,12 +79,12 @@ export default function NewListing() {
         valueTier: tierOf(amount), estValue: kind === 'swap' ? amount : undefined,
         price: kind === 'swap' ? undefined : amount,
         minIncrement: kind === 'auction' ? increment : undefined,
-        endsAt: kind === 'auction' ? Date.now() + days * 86_400_000 : undefined,
+        durationMinutes: kind === 'auction' ? minutes : undefined,
         bidsCount: 0,
         ownerName: name.trim(), whatsapp: whatsapp.trim() || undefined,
       });
       setDone(l);
-      toast('انتشر عرضك');
+      toast(l.kind === 'auction' ? 'انحفظ مزادك' : 'انتشر عرضك');
     } catch {
       toast('ما انتشر العرض، تأكد من الاتصال وحاول مرة ثانية');
     } finally {
@@ -116,15 +117,22 @@ export default function NewListing() {
           <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.25, type: 'spring', stiffness: 300, damping: 12 }}><Check size={44} strokeWidth={2.5} /></motion.span>
         </motion.div>
         <motion.h1 className="h2" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3, duration: 0.7, ease: EASE }}>
-          {done.kind === 'auction' ? 'مزادك بدأ' : `عرضك صار على ${SITE.name}`}
+          {done.kind === 'auction' ? 'باقي خطوة: فعّل مزادك' : `عرضك صار على ${SITE.name}`}
         </motion.h1>
         <motion.p className="lead" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.45 }}>
-          «{done.title}» الحين معروض.{' '}
-          {done.kind === 'swap' ? 'أول ما يوصلك عرض بدل بننبّهك.' : done.kind === 'sale' ? 'طلبات الشراء توصلك في صفحة عروضي.' : 'تابع المزايدات من صفحة المزاد.'}
+          {done.kind === 'auction'
+            ? `«${done.title}» محفوظ وما يظهر للناس للحين. ادفع رسم عرض المزاد ${formatSAR(SITE.listingFee)}، وبعد تأكيد الدفع يبدأ بـ ${SITE.startDelayMinutes} دقيقة.`
+            : `«${done.title}» الحين معروض. ${done.kind === 'swap' ? 'أول ما يوصلك عرض بدل بننبّهك.' : 'طلبات الشراء توصلك في صفحة عروضي.'}`}
         </motion.p>
         <motion.div className="hero-cta" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}>
-          <Link href="/offers" className="btn btn-primary btn-lg">تابع العروض</Link>
-          <Link href={`/listing/${done.id}`} className="btn btn-ghost btn-lg">شوف عرضك</Link>
+          {done.kind === 'auction' ? (
+            <Link href={`/listing/${done.id}`} className="btn btn-primary btn-lg">ادفع الرسم وفعّل المزاد</Link>
+          ) : (
+            <>
+              <Link href="/offers" className="btn btn-primary btn-lg">تابع العروض</Link>
+              <Link href={`/listing/${done.id}`} className="btn btn-ghost btn-lg">شوف عرضك</Link>
+            </>
+          )}
         </motion.div>
       </div>
     );
@@ -226,12 +234,12 @@ export default function NewListing() {
                     <div className="field">
                       <span className="label">مدة المزاد</span>
                       <div className="chips chips-wrap">
-                        {DURATIONS.map((d) => <button type="button" key={d.days} className={`chip chip-btn chip-lg ${days === d.days ? 'is-solid' : ''}`} onClick={() => setDays(d.days)}>{d.label}</button>)}
+                        {DURATIONS.map((d) => <button type="button" key={d.minutes} className={`chip chip-btn chip-lg ${minutes === d.minutes ? 'is-solid' : ''}`} onClick={() => setMinutes(d.minutes)}>{d.label}</button>)}
                       </div>
                     </div>
                   </div>
                   <p className="hint">
-                    السعر والمدة ما يتغيرون بعد النشر، والمزاد ما ينحذف بعد أول مزايدة. كل مزايد يدفع رسم دخول {formatSAR(SITE.auctionFee)} للمنصة.
+                    رسم عرض المزاد {formatSAR(SITE.listingFee)} تدفعه بعد النشر بتحويل بنكي. بعد تأكيد الدفع يبدأ المزاد بـ {SITE.startDelayMinutes} دقيقة، والمزايدون يسجّلون خلالها (رسم الدخول {formatSAR(SITE.auctionFee)}) والتسجيل يقفل قبل البداية بـ {SITE.entryCutoffMinutes} دقايق. السعر والمدة ما يتغيرون بعد النشر.
                   </p>
                 </>
               )}
@@ -279,7 +287,7 @@ export default function NewListing() {
                   <span className="label">ملخص عرضك</span>
                   <strong>{title}</strong>
                   <span>
-                    {kind === 'sale' ? `للبيع بـ ${formatSAR(amount)}` : `مزاد يبدأ من ${formatSAR(amount)} · أقل زيادة ${formatSAR(increment)} · المدة ${DURATIONS.find((d) => d.days === days)?.label}`}
+                    {kind === 'sale' ? `للبيع بـ ${formatSAR(amount)}` : `مزاد يبدأ من ${formatSAR(amount)} · أقل زيادة ${formatSAR(increment)} · المدة ${DURATIONS.find((d) => d.minutes === minutes)?.label} · رسم العرض ${formatSAR(SITE.listingFee)}`}
                   </span>
                 </div>
               )}
@@ -309,7 +317,7 @@ export default function NewListing() {
           <button className="btn btn-primary btn-lg" disabled={!ok} onClick={() => go(1)}>التالي <ArrowLeft size={18} /></button>
         ) : (
           <motion.button className="btn btn-primary btn-lg" disabled={!ok || busy} onClick={publish} whileTap={{ scale: 0.97 }}>
-            {busy ? 'جاري النشر…' : kind === 'auction' ? 'ابدأ المزاد' : 'انشر العرض'} <Check size={18} />
+            {busy ? 'جاري النشر…' : kind === 'auction' ? 'احفظ المزاد' : 'انشر العرض'} <Check size={18} />
           </motion.button>
         )}
       </div>

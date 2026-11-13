@@ -1,12 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { SEED, auctionEnded, listingValue, minNextBid, tierOf, type Bid, type Entry, type Listing, type Offer } from './data';
+import { SEED, auctionPhase, listingValue, minNextBid, tierOf, type Bid, type Entry, type Fee, type Listing, type Offer } from './data';
+import { SITE } from './site';
 import { StoreCtx, useToasts, type Ctx, type Me } from './ctx';
 
 /** الوضع التجريبي: كل شي ينحفظ في متصفح الزائر، مع عروض نموذجية وردود محاكاة */
-type Live = Pick<Listing, 'currentBid' | 'bidsCount' | 'topBidder' | 'endsAt'>;
-type State = { me: Me; listings: Listing[]; offers: Offer[]; favs: string[]; bids: Bid[]; entries: Entry[]; live: Record<string, Live> };
+type Live = Partial<Pick<Listing, 'currentBid' | 'bidsCount' | 'topBidder' | 'startsAt' | 'endsAt'>>;
+type State = { me: Me; listings: Listing[]; offers: Offer[]; favs: string[]; bids: Bid[]; entries: Entry[]; fees: Fee[]; live: Record<string, Live> };
 
 const KEY = 'badal:v1';
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -17,7 +18,7 @@ function demoValue(listing: Listing, i: number) {
   const estValue = round(i ? target * 0.7 : target * 1.05);
   return { estValue, valueTier: tierOf(estValue), cash: i ? round(target * 0.25) : 0 };
 }
-const empty: State = { me: { id: '', name: '', city: 'الرياض', whatsapp: '' }, listings: [], offers: [], favs: [], bids: [], entries: [], live: {} };
+const empty: State = { me: { id: '', name: '', city: 'الرياض', whatsapp: '' }, listings: [], offers: [], favs: [], bids: [], entries: [], fees: [], live: {} };
 
 export function LocalProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<State>(empty);
@@ -93,6 +94,25 @@ export function LocalProvider({ children }: { children: React.ReactNode }) {
 
     const withdrawOffer: Ctx['withdrawOffer'] = async (id) => setState((s) => ({ ...s, offers: s.offers.filter((o) => o.id !== id) }));
 
+    const requestAuctionFee: Ctx['requestAuctionFee'] = async (listingId, senderName, reference) => {
+      const fee: Fee = { listingId, ownerId: state.me.id, senderName, reference, status: 'pending', createdAt: Date.now() };
+      setState((s) => ({ ...s, fees: [fee, ...s.fees.filter((f) => f.listingId !== listingId)] }));
+      // في الوضع التجريبي نحاكي تأكيد المشرف: يبدأ المزاد بعد نصف ساعة من التأكيد
+      later(5000, () => {
+        setState((s) => {
+          const l = s.listings.find((x) => x.id === listingId);
+          if (!l) return s;
+          const startsAt = Date.now() + SITE.startDelayMinutes * 60_000;
+          return {
+            ...s,
+            fees: s.fees.map((f) => (f.listingId === listingId ? { ...f, status: 'approved', demo: true } : f)),
+            live: { ...s.live, [listingId]: { ...s.live[listingId], startsAt, endsAt: startsAt + (l.durationMinutes ?? 60) * 60_000 } },
+          };
+        });
+        toast(`تفعّل مزادك — يبدأ بعد ${SITE.startDelayMinutes} دقيقة`);
+      });
+    };
+
     const requestEntry: Ctx['requestEntry'] = async (listingId, senderName, reference) => {
       const entry: Entry = { id: `e${uid()}`, listingId, userId: state.me.id, senderName, reference, status: 'pending', createdAt: Date.now() };
       setState((s) => ({ ...s, entries: [entry, ...s.entries.filter((e) => e.listingId !== listingId)] }));
@@ -106,7 +126,7 @@ export function LocalProvider({ children }: { children: React.ReactNode }) {
     const toggleFav: Ctx['toggleFav'] = (id) =>
       setState((s) => ({ ...s, favs: s.favs.includes(id) ? s.favs.filter((f) => f !== id) : [...s.favs, id] }));
 
-    return { setMe, addListing, removeListing, addOffer, setOfferStatus, withdrawOffer, requestEntry, toggleFav };
+    return { setMe, addListing, removeListing, addOffer, setOfferStatus, withdrawOffer, requestAuctionFee, requestEntry, toggleFav };
   }, [state.me.id, later, toast]);
 
   const all = useMemo(() => [...state.listings, ...SEED].map((l) => (state.live[l.id] ? { ...l, ...state.live[l.id] } : l)), [state.listings, state.live]);
@@ -130,7 +150,9 @@ export function LocalProvider({ children }: { children: React.ReactNode }) {
   const placeBid: Ctx['placeBid'] = async (listingId, amount) => {
     const l = all.find((x) => x.id === listingId);
     if (!l || l.kind !== 'auction') return 'هذا العرض مو مزاد';
-    if (auctionEnded(l)) return 'انتهى المزاد';
+    const phase = auctionPhase(l);
+    if (phase === 'ended') return 'انتهى المزاد';
+    if (phase !== 'live') return 'المزاد ما بدأ بعد';
     if (l.ownerId === state.me.id) return 'ما تقدر تزايد على مزادك';
     if (!state.entries.some((e) => e.listingId === listingId && e.status === 'approved')) return 'لازم تدخل المزاد أول';
     if (amount < minNextBid(l)) return `أقل مزايدة مقبولة ${minNextBid(l).toLocaleString('en-US')} ريال`;
@@ -139,7 +161,7 @@ export function LocalProvider({ children }: { children: React.ReactNode }) {
     setState((s) => ({
       ...s,
       bids: [bid, ...s.bids],
-      live: { ...s.live, [listingId]: { currentBid: amount, bidsCount: (l.bidsCount ?? 0) + 1, topBidder: s.me.id, endsAt: soon ? Date.now() + 120_000 : l.endsAt } },
+      live: { ...s.live, [listingId]: { ...s.live[listingId], currentBid: amount, bidsCount: (l.bidsCount ?? 0) + 1, topBidder: s.me.id, endsAt: soon ? Date.now() + 120_000 : l.endsAt } },
     }));
     return null;
   };
@@ -155,6 +177,8 @@ export function LocalProvider({ children }: { children: React.ReactNode }) {
     refreshListing: async () => {},
     isAdmin: false,
     loadPendingEntries: async () => [],
+    loadPendingFees: async () => [],
+    reviewFee: async () => {},
     reviewEntry: async () => {},
     resetPassword: async () => null,
     updatePassword: async () => null,

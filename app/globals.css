@@ -548,3 +548,6 @@ a.offer:hover { border-color: var(--line-strong); }
   .card-price strong { font-size: 16px; }
   .bid-row { flex-direction: column; }
 }
+.admin-h { margin-block: 34px 14px; font-size: 21px; }
+.admin-none { padding: 18px; border-radius: 18px; border: 1px dashed var(--line-strong); text-align: center; }
+.auction-skeleton { height: 220px; border-radius: 18px; }

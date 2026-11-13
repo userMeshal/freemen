@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import type { Bid, Entry, Listing, Offer } from './data';
+import type { Bid, Entry, Fee, Listing, Offer } from './data';
 
 export type Me = { id: string; name: string; city: string; whatsapp: string };
 export type Toast = { id: number; text: string };
@@ -32,6 +32,14 @@ export type Ctx = {
   setOfferStatus: (id: string, status: Offer['status']) => Promise<void>;
   /** المرسل يسحب عرضه قبل الرد عليه */
   withdrawOffer: (id: string) => Promise<void>;
+  /** طلبات دفع رسم عرض مزاداتي */
+  fees: Fee[];
+  /** صاحب المزاد يرسل بيانات تحويل رسم العرض */
+  requestAuctionFee: (listingId: string, senderName: string, reference: string) => Promise<void>;
+  /** للمشرف: رسوم عرض المزادات اللي تنتظر التحقق */
+  loadPendingFees: () => Promise<Fee[]>;
+  /** للمشرف: تأكيد الرسم يبدأ المزاد بعد نصف ساعة */
+  reviewFee: (listingId: string, approve: boolean) => Promise<void>;
   /** طلباتي لدخول المزادات */
   entries: Entry[];
   /** يرسل طلب دخول مزاد بعد تحويل الرسم */

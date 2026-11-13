@@ -79,7 +79,7 @@ function Bento() {
           <Wallet size={26} strokeWidth={1.5} />
           <div className="tile-big"><Counter to={0} /> <small>ريال عمولة</small></div>
           <h3>بدون عمولة على البدل والبيع</h3>
-          <p>المنصة ما تاخذ نسبة من بدلتك ولا بيعتك. الرسم الوحيد: {SITE.auctionFee} ريال لدخول المزاد.</p>
+          <p>المنصة ما تاخذ نسبة من بدلتك ولا بيعتك. الرسوم على المزادات فقط: {SITE.listingFee} ريال لعرض المزاد و{SITE.auctionFee} ريال لدخوله.</p>
           <div className="tile-glow" />
         </Reveal>
         <Reveal className="tile" delay={0.08}>
@@ -123,7 +123,7 @@ function Bento() {
 
 export default function Home() {
   const { all, ready } = useStore();
-  const liveAuctions = all.filter((l) => l.kind === 'auction' && !auctionEnded(l)).slice(0, 4);
+  const liveAuctions = all.filter((l) => l.kind === 'auction' && l.endsAt && !auctionEnded(l)).slice(0, 4);
   const heroRef = useRef<HTMLElement>(null);
   const { scrollYProgress } = useScroll({ target: heroRef, offset: ['start start', 'end start'] });
   const orbY = useTransform(scrollYProgress, [0, 1], [0, 180]);
@@ -180,8 +180,8 @@ export default function Home() {
         <section className="section container">
           <Reveal className="section-head">
             <div>
-              <span className="eyebrow">مزادات شغّالة</span>
-              <h2 className="h2">زاوِد قبل ما يخلص الوقت.</h2>
+              <span className="eyebrow">مزادات</span>
+              <h2 className="h2">سجّل قبل ما يبدأ،<br />وزاوِد قبل ما يخلص.</h2>
             </div>
             <Link href="/browse?kind=auction" className="btn btn-ghost">كل المزادات <ArrowLeft size={16} /></Link>
           </Reveal>

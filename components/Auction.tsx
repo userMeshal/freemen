@@ -4,8 +4,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Check, Clock, Copy, Gavel, Hourglass, MessageCircle, Trophy, X } from 'lucide-react';
-import { auctionEnded, formatSAR, minNextBid, parseAmount, timeAgo, timeLeft, type Bid, type Listing } from '@/lib/data';
+import { Check, Clock, Copy, Gavel, Hourglass, Lock, MessageCircle, Trophy, Wallet, X } from 'lucide-react';
+import { auctionPhase, formatSAR, minNextBid, parseAmount, registrationCloses, timeAgo, timeLeft, type Bid, type Listing } from '@/lib/data';
 import { SITE } from '@/lib/site';
 import { useStore } from '@/lib/store';
 import { EASE } from './ui';
@@ -21,15 +21,18 @@ export function useNow(active = true) {
   return now;
 }
 
-/** نافذة دخول المزاد: بيانات التحويل البنكي + إثبات التحويل */
-function EntryModal({ listing, onClose }: { listing: Listing; onClose: () => void }) {
-  const { cloud, me, requestEntry, toast } = useStore();
+/** نافذة دفع رسم بتحويل بنكي: بيانات الحساب + إثبات التحويل. تُستخدم لرسم عرض المزاد ولرسم دخوله. */
+function TransferModal({ title, subtitle, amount, lastStep, note, onSubmit, onClose }: {
+  title: string; subtitle: string; amount: number; lastStep: string; note: string;
+  onSubmit: (senderName: string, reference: string) => Promise<void>; onClose: () => void;
+}) {
+  const { cloud, me, toast } = useStore();
   const [senderName, setSenderName] = useState(me.name);
   const [reference, setReference] = useState('');
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   // في الوضع التجريبي نعرض حساباً وهمياً حتى تنجرّب الخطوات
-  const bank = SITE.bank.iban || cloud ? SITE.bank : { holder: 'حساب تجريبي', bankName: 'بنك تجريبي', iban: 'SA00 0000 0000 0000 0000 0000' };
+  const bank = cloud ? SITE.bank : { holder: 'حساب تجريبي', bankName: 'بنك تجريبي', iban: 'SA00 0000 0000 0000 0000 0000' };
   const valid = senderName.trim().length > 1 && !!bank.iban;
 
   useEffect(() => {
@@ -47,11 +50,11 @@ function EntryModal({ listing, onClose }: { listing: Listing; onClose: () => voi
     if (!valid || busy) return;
     setBusy(true);
     try {
-      await requestEntry(listing.id, senderName.trim(), reference.trim());
-      toast('وصلنا طلبك — نفعّل دخولك بعد التحقق من التحويل');
+      await onSubmit(senderName.trim(), reference.trim());
+      toast('وصلنا طلبك — نتحقق من التحويل ونفعّله');
       onClose();
     } catch {
-      toast('ما انرسل الطلب، حاول مرة ثانية');
+      toast('ما انرسل الطلب — يمكن انتهى وقت التسجيل، أو الاتصال ضعيف');
       setBusy(false);
     }
   };
@@ -59,21 +62,21 @@ function EntryModal({ listing, onClose }: { listing: Listing; onClose: () => voi
   return createPortal(
     <motion.div className="overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
       <motion.form
-        className="modal" role="dialog" aria-modal="true" aria-label="دخول المزاد" onSubmit={submit} onClick={(e) => e.stopPropagation()}
+        className="modal" role="dialog" aria-modal="true" aria-label={title} onSubmit={submit} onClick={(e) => e.stopPropagation()}
         initial={{ opacity: 0, y: 60, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 40, scale: 0.97 }}
         transition={{ type: 'spring', stiffness: 320, damping: 30 }}
       >
         <div className="modal-head">
           <div>
-            <h2>دخول المزاد</h2>
-            <p>{listing.title}</p>
+            <h2>{title}</h2>
+            <p>{subtitle}</p>
           </div>
           <button type="button" className="icon-btn" onClick={onClose} aria-label="إغلاق"><X size={18} /></button>
         </div>
 
         <ol className="entry-steps">
           <li>
-            حوّل <strong>{formatSAR(SITE.auctionFee)}</strong> رسم الدخول على الحساب:
+            حوّل <strong>{formatSAR(amount)}</strong> على الحساب:
             {bank.iban ? (
               <div className="bank">
                 <span>{bank.bankName} — {bank.holder}</span>
@@ -82,11 +85,11 @@ function EntryModal({ listing, onClose }: { listing: Listing; onClose: () => voi
                 </button>
               </div>
             ) : (
-              <div className="form-error">بيانات الحساب البنكي لم تُضف بعد — دخول المزادات متوقف مؤقتاً.</div>
+              <div className="form-error">بيانات الحساب البنكي لم تُضف بعد — الدفع متوقف مؤقتاً.</div>
             )}
           </li>
           <li>اكتب بيانات تحويلك تحت عشان نطابقها.</li>
-          <li>نتحقق من وصول التحويل ونفعّل دخولك، وبعدها تقدر تزايد.</li>
+          <li>{lastStep}</li>
         </ol>
 
         <label className="field">
@@ -97,7 +100,7 @@ function EntryModal({ listing, onClose }: { listing: Listing; onClose: () => voi
           <span className="label">رقم العملية أو وقت التحويل (يسرّع التحقق)</span>
           <input className="input" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="مثال: اليوم 9:40 م" maxLength={80} />
         </label>
-        <p className="hint">الرسم يخص هذا المزاد فقط، وما يُسترد بعد تفعيل الدخول. التفاصيل في سياسة الإلغاء والاسترجاع.</p>
+        <p className="hint">{note}</p>
 
         <button className="btn btn-primary btn-lg btn-block" disabled={!valid || busy}>{busy ? 'جاري الإرسال…' : 'حوّلت — أرسل الطلب'}</button>
       </motion.form>
@@ -106,38 +109,56 @@ function EntryModal({ listing, onClose }: { listing: Listing; onClose: () => voi
   );
 }
 
-/** لوحة المزاد في صفحة العرض: السعر الحالي، العدّاد، المزايدة، وسجل المزايدات */
+function State({ icon: Icon, title, text, tone, children }: { icon: typeof Clock; title: string; text?: string; tone?: 'won'; children?: React.ReactNode }) {
+  return (
+    <div className={`auction-state ${tone === 'won' ? 'is-won' : ''}`}>
+      <Icon size={18} />
+      <div>
+        <strong>{title}</strong>
+        {text && <small>{text}</small>}
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/** لوحة المزاد في صفحة العرض: التفعيل، التسجيل قبل البداية، المزايدة، والنتيجة */
 export default function AuctionPanel({ listing, mine }: { listing: Listing; mine: boolean }) {
   const router = useRouter();
-  const { authed, me, entries, loadBids, placeBid, refreshListing, contactFor, toast } = useStore();
+  const { authed, me, entries, fees, loadBids, placeBid, refreshListing, requestEntry, requestAuctionFee, contactFor, toast } = useStore();
   const [bids, setBids] = useState<Bid[]>([]);
   const [text, setText] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [open, setOpen] = useState(false);
+  const [modal, setModal] = useState<'fee' | 'entry' | null>(null);
   const now = useNow();
+  // العدّاد يعتمد على ساعة المتصفح، فنرسم اللوحة بعد التحميل فقط حتى لا يختلف عن نسخة الخادم
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
-  const ended = auctionEnded(listing, now);
+  const phase = auctionPhase(listing, now);
   const entry = entries.find((e) => e.listingId === listing.id);
+  const fee = fees.find((f) => f.listingId === listing.id);
+  const closesAt = registrationCloses(listing, SITE.entryCutoffMinutes);
+  const canRegister = phase === 'upcoming' && now < closesAt;
   const next = minNextBid(listing);
   const amount = parseAmount(text);
   const leading = !!me.id && listing.topBidder === me.id;
   const other = mine ? listing.topBidder : listing.ownerId;
-  const wa = ended && (mine || leading) && other ? contactFor(other)?.replace(/\D/g, '').replace(/^0/, '966') : undefined;
+  const wa = phase === 'ended' && (mine || leading) && other ? contactFor(other)?.replace(/\D/g, '').replace(/^0/, '966') : undefined;
 
   const reload = useCallback(() => {
-    loadBids(listing.id).then(setBids).catch(() => {});
     refreshListing(listing.id).catch(() => {});
-  }, [listing.id, loadBids, refreshListing]);
+  }, [listing.id, refreshListing]);
 
-  // نحدّث السعر والمزايدات كل 8 ثواني ما دام المزاد شغّال، ومرة عند انتهائه
+  // نحدّث حالة المزاد كل 8 ثواني ما دام ما انتهى، ومرة عند كل تغيّر مرحلة (بدأ / انتهى)
   useEffect(() => {
     reload();
-    if (ended) return;
+    if (phase === 'ended') return;
     const t = setInterval(reload, 8000);
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [listing.id, ended]);
+  }, [listing.id, phase]);
 
   // سجل المزايدات يتبع السعر: أي مزايدة جديدة (مني أو من غيري) تحدّثه
   useEffect(() => {
@@ -155,41 +176,86 @@ export default function AuctionPanel({ listing, mine }: { listing: Listing; mine
       setText('');
       toast('انحسبت مزايدتك — أنت الأعلى الحين');
     }
-    // السعر يتحدث من القاعدة، وسجل المزايدات يتبعه تلقائياً
-    refreshListing(listing.id).catch(() => {});
+    reload();
     setBusy(false);
   };
+
+  const login = () => router.push(`/login?next=/listing/${listing.id}`);
+
+  if (!mounted) return <div className="auction"><div className="skeleton auction-skeleton" /></div>;
+
+  // ───── قبل التفعيل: صاحب المزاد يدفع رسم العرض ─────
+  if (phase === 'unpaid') {
+    return (
+      <div className="auction">
+        <div className="auction-top">
+          <div>
+            <span className="label">سعر البداية</span>
+            <strong className="auction-price">{formatSAR(listing.price ?? 0)}</strong>
+          </div>
+          <div className="countdown is-ended"><Lock size={16} /> غير مفعّل</div>
+        </div>
+        {!mine ? (
+          <State icon={Hourglass} title="هذا المزاد ما تفعّل بعد" />
+        ) : fee?.status === 'pending' ? (
+          <State icon={Hourglass} title="رسم المزاد قيد التحقق" text={`نطابق تحويلك (${fee.senderName}). أول ما يتأكد، يبدأ مزادك بعد ${SITE.startDelayMinutes} دقيقة ويظهر للناس.`} />
+        ) : (
+          <>
+            {fee?.status === 'rejected' && <div className="form-error">ما قدرنا نطابق تحويلك السابق. تأكد من البيانات وأرسل الطلب من جديد.</div>}
+            <State icon={Wallet} title="مزادك محفوظ وما يظهر للناس للحين" text={`ادفع رسم عرض المزاد ${formatSAR(SITE.listingFee)}، وبعد تأكيد الدفع يبدأ المزاد بـ ${SITE.startDelayMinutes} دقيقة.`} />
+            <motion.button className="btn btn-primary btn-lg btn-block" whileTap={{ scale: 0.97 }} onClick={() => setModal('fee')}>
+              <Wallet size={18} /> فعّل المزاد — {formatSAR(SITE.listingFee)}
+            </motion.button>
+          </>
+        )}
+        <AnimatePresence>
+          {modal === 'fee' && (
+            <TransferModal
+              title="تفعيل المزاد" subtitle={listing.title} amount={SITE.listingFee}
+              lastStep={`نتحقق من وصول التحويل، وبعد التأكيد بـ ${SITE.startDelayMinutes} دقيقة يبدأ مزادك.`}
+              note="رسم عرض المزاد ما يُسترد بعد تفعيل المزاد. التفاصيل في سياسة الإلغاء والاسترجاع."
+              onSubmit={(n, r) => requestAuctionFee(listing.id, n, r)} onClose={() => setModal(null)}
+            />
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  }
 
   return (
     <div className="auction">
       <div className="auction-top">
         <div>
-          <span className="label">{listing.currentBid ? (ended ? 'سعر الإغلاق' : 'أعلى مزايدة') : 'سعر البداية'}</span>
+          <span className="label">{listing.currentBid ? (phase === 'ended' ? 'سعر الإغلاق' : 'أعلى مزايدة') : 'سعر البداية'}</span>
           <motion.strong key={listing.currentBid ?? 0} className="auction-price" initial={{ scale: 1.12, opacity: 0.4 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.5, ease: EASE }}>
             {formatSAR(listing.currentBid ?? listing.price ?? 0)}
           </motion.strong>
         </div>
-        <div className={`countdown ${ended ? 'is-ended' : (listing.endsAt ?? 0) - now < 3600_000 ? 'is-soon' : ''}`}>
+        <div className={`countdown ${phase === 'ended' ? 'is-ended' : phase === 'live' && (listing.endsAt ?? 0) - now < 600_000 ? 'is-soon' : ''}`}>
           <Clock size={16} />
-          <span suppressHydrationWarning>{ended ? 'انتهى المزاد' : `باقي ${timeLeft(listing.endsAt ?? 0, now)}`}</span>
+          <span suppressHydrationWarning>
+            {phase === 'ended' ? 'انتهى المزاد' : phase === 'upcoming' ? `يبدأ بعد ${timeLeft(listing.startsAt ?? 0, now)}` : `باقي ${timeLeft(listing.endsAt ?? 0, now)}`}
+          </span>
         </div>
       </div>
-      <small className="auction-meta">{listing.bidsCount ?? 0} مزايدة · أقل زيادة {formatSAR(listing.minIncrement ?? 10)} · رسم الدخول {formatSAR(SITE.auctionFee)}</small>
+      <small className="auction-meta">
+        {listing.bidsCount ?? 0} مزايدة · أقل زيادة {formatSAR(listing.minIncrement ?? 10)} · رسم الدخول {formatSAR(SITE.auctionFee)}
+        {phase === 'upcoming' && listing.durationMinutes ? ` · مدة المزاد ${listing.durationMinutes >= 60 ? `${listing.durationMinutes / 60} ساعة` : `${listing.durationMinutes} دقيقة`}` : ''}
+      </small>
 
-      {ended ? (
-        <div className={`auction-state ${listing.topBidder ? 'is-won' : ''}`}>
-          <Trophy size={18} />
-          <div>
-            <strong>{!listing.topBidder ? 'انتهى المزاد بدون مزايدات' : leading ? 'مبروك! أنت الفائز بالمزاد' : mine ? `الفائز: ${bids[0]?.bidderName ?? 'صاحب أعلى مزايدة'}` : 'انتهى المزاد وفاز صاحب أعلى مزايدة'}</strong>
-            {(mine || leading) && listing.topBidder && (
-              wa ? <a className="btn btn-primary btn-sm" href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer"><MessageCircle size={15} /> تواصل واتساب</a>
-                : <small>رتّبوا التسليم والدفع بينكم مباشرة. الطرف الثاني ما أضاف رقم واتساب.</small>
-            )}
-          </div>
-        </div>
+      {phase === 'ended' ? (
+        <State
+          icon={Trophy} tone={listing.topBidder ? 'won' : undefined}
+          title={!listing.topBidder ? 'انتهى المزاد بدون مزايدات' : leading ? 'مبروك! أنت الفائز بالمزاد' : mine ? `الفائز: ${bids[0]?.bidderName ?? 'صاحب أعلى مزايدة'}` : 'انتهى المزاد وفاز صاحب أعلى مزايدة'}
+        >
+          {(mine || leading) && listing.topBidder && (
+            wa ? <a className="btn btn-primary btn-sm" href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer"><MessageCircle size={15} /> تواصل واتساب</a>
+              : <small>رتّبوا التسليم والدفع بينكم مباشرة. الطرف الثاني ما أضاف رقم واتساب.</small>
+          )}
+        </State>
       ) : mine ? (
-        <div className="auction-state"><Gavel size={18} /><div><strong>هذا مزادك</strong><small>تابع المزايدات هنا. بعد انتهائه يظهر لك رقم الفائز.</small></div></div>
-      ) : entry?.status === 'approved' ? (
+        <State icon={Gavel} title="هذا مزادك" text={phase === 'upcoming' ? 'المزاد مفعّل وظاهر للناس. المزايدون يسجّلون الحين، والمزايدة تبدأ مع نهاية العدّاد.' : 'تابع المزايدات هنا. بعد انتهائه يظهر لك رقم الفائز.'} />
+      ) : entry?.status === 'approved' && phase === 'live' ? (
         <form onSubmit={bid}>
           {leading && <p className="leading"><Check size={15} /> أنت صاحب أعلى مزايدة الحين</p>}
           <div className="bid-row">
@@ -205,16 +271,22 @@ export default function AuctionPanel({ listing, mine }: { listing: Listing; mine
           {error && <div className="form-error" role="alert">{error}</div>}
           <p className="hint">المزايدة ملزمة وما تنسحب. لو فزت، تدفع المبلغ لصاحب الغرض مباشرة عند الاستلام.</p>
         </form>
+      ) : entry?.status === 'approved' ? (
+        <State icon={Check} tone="won" title="دخولك مفعّل" text={`المزايدة تفتح لك بعد ${timeLeft(listing.startsAt ?? 0, now)}. خلّك في الصفحة.`} />
       ) : entry?.status === 'pending' ? (
-        <div className="auction-state"><Hourglass size={18} /><div><strong>طلب دخولك قيد التحقق</strong><small>نطابق تحويلك ({entry.senderName}) ونفعّل دخولك. بيوصلك تنبيه هنا.</small></div></div>
-      ) : (
+        <State icon={Hourglass} title="طلب دخولك قيد التحقق" text={`نطابق تحويلك (${entry.senderName}) ونفعّل دخولك. بيوصلك تنبيه هنا.`} />
+      ) : canRegister ? (
         <>
           {entry?.status === 'rejected' && <div className="form-error">ما قدرنا نطابق تحويلك السابق. تأكد من البيانات وأرسل الطلب من جديد.</div>}
-          <motion.button className="btn btn-primary btn-lg btn-block" whileTap={{ scale: 0.97 }} onClick={() => (authed ? setOpen(true) : router.push(`/login?next=/listing/${listing.id}`))}>
+          <motion.button className="btn btn-primary btn-lg btn-block" whileTap={{ scale: 0.97 }} onClick={() => (authed ? setModal('entry') : login())}>
             <Gavel size={18} /> ادخل المزاد — {formatSAR(SITE.auctionFee)}
           </motion.button>
-          <p className="hint">رسم الدخول يُدفع بتحويل بنكي مرة واحدة لهذا المزاد، وبعد التحقق تقدر تزايد.</p>
+          <p className="hint" suppressHydrationWarning>
+            التسجيل يقفل بعد <strong>{timeLeft(closesAt, now)}</strong> (قبل بداية المزاد بـ {SITE.entryCutoffMinutes} دقايق). بعدها ما تقدر تدفع الرسم ولا تشارك.
+          </p>
         </>
+      ) : (
+        <State icon={Lock} title="التسجيل في هذا المزاد مقفل" text={`الدخول ينقفل قبل بداية المزاد بـ ${SITE.entryCutoffMinutes} دقايق، والمزايدة للمسجّلين فقط. تقدر تتابع المزايدات هنا.`} />
       )}
 
       {bids.length > 0 && (
@@ -232,7 +304,16 @@ export default function AuctionPanel({ listing, mine }: { listing: Listing; mine
         </div>
       )}
 
-      <AnimatePresence>{open && <EntryModal listing={listing} onClose={() => setOpen(false)} />}</AnimatePresence>
+      <AnimatePresence>
+        {modal === 'entry' && (
+          <TransferModal
+            title="دخول المزاد" subtitle={listing.title} amount={SITE.auctionFee}
+            lastStep="نتحقق من وصول التحويل ونفعّل دخولك، وتقدر تزايد أول ما يبدأ المزاد."
+            note="الرسم يخص هذا المزاد فقط، وما يُسترد بعد تفعيل الدخول. التفاصيل في سياسة الإلغاء والاسترجاع."
+            onSubmit={(n, r) => requestEntry(listing.id, n, r)} onClose={() => setModal(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
