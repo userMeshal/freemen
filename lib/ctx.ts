@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import type { Bid, ChatHead, Entry, Fee, Listing, Message, Offer } from './data';
+import type { Admin, Bid, ChatHead, Entry, Fee, Listing, Message, Offer } from './data';
 
 export type Me = { id: string; name: string; city: string; whatsapp: string };
 export type Toast = { id: number; text: string };
@@ -59,6 +59,14 @@ export type Ctx = {
   /** يحدّث عرضاً واحداً من القاعدة (سعر المزاد الحالي ووقته) */
   refreshListing: (id: string) => Promise<void>;
   isAdmin: boolean;
+  /** المشرف الأساسي: الوحيد اللي يضيف ويشيل المشرفين */
+  isRootAdmin: boolean;
+  loadAdmins: () => Promise<Admin[]>;
+  /** يضيف مشرفاً ببريد حسابه — يرجّع نص الخطأ أو null */
+  addAdmin: (email: string) => Promise<string | null>;
+  removeAdmin: (userId: string) => Promise<string | null>;
+  /** حذف إعلان من الإدارة مع تسجيل السبب */
+  adminDeleteListing: (id: string, reason: string) => Promise<void>;
   /** للمشرف: طلبات الدخول اللي تنتظر التحقق من التحويل */
   loadPendingEntries: () => Promise<Entry[]>;
   reviewEntry: (id: string, status: 'approved' | 'rejected') => Promise<void>;

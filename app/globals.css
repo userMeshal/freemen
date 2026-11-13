@@ -641,3 +641,17 @@ a.offer:hover { border-color: var(--line-strong); }
 .scribble-c { stroke: var(--scribble-c); }
 .scribble-ink { stroke: var(--ink); }
 @media (max-width: 560px) { .hero-logo { margin: 26px 34px 12px 30px; } }
+
+/* ───────── الإدارة: الإعلانات والمشرفون ───────── */
+.admin-search { margin-bottom: 10px; }
+.admin-count { margin-bottom: 14px; }
+.admin-listing { align-items: center; }
+.admin-listing .offer-top a:hover strong { text-decoration: underline; text-underline-offset: 3px; }
+.admin-del { flex: none; }
+.admin-del:hover { color: var(--bad); border-color: currentColor; background: transparent; }
+.admin-skel { height: 90px; }
+.admin-warn { margin-bottom: 16px; padding: 14px 16px; border-radius: 16px; background: color-mix(in srgb, var(--bad) 9%, transparent); color: var(--bad); font-size: 14.5px; line-height: 1.8; }
+.admin-actions { padding: 6px 0 0; }
+.btn-danger { background: var(--bad); color: #fff; }
+.btn-danger:hover { transform: translateY(-2px); box-shadow: 0 10px 30px -8px color-mix(in srgb, var(--bad) 60%, transparent); }
+@media (max-width: 560px) { .admin-listing { flex-wrap: wrap; } .admin-del { margin-inline-start: auto; } }

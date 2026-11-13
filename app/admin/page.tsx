@@ -3,14 +3,20 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Check, RefreshCw, X } from 'lucide-react';
-import { formatSAR, timeAgo, type Entry, type Fee } from '@/lib/data';
+import { Check, RefreshCw, Search, ShieldCheck, Trash2, UserPlus, X } from 'lucide-react';
+import { ListingArt } from '@/components/ui';
+import { KINDS, formatSAR, timeAgo, type Admin, type Entry, type Fee, type Listing } from '@/lib/data';
 import { SITE } from '@/lib/site';
 import { useStore } from '@/lib/store';
 
-/** لوحة المشرف: مطابقة تحويلات رسم دخول المزاد وتفعيل المزايدين */
+/** لوحة المشرف: تحويلات المزادات، حذف الإعلانات المخالفة، وإدارة المشرفين (للمشرف الأساسي) */
 export default function AdminPage() {
-  const { ready, isAdmin, loadPendingEntries, reviewEntry, loadPendingFees, reviewFee, toast } = useStore();
+  const { ready, isAdmin, isRootAdmin, all, me, loadPendingEntries, reviewEntry, loadPendingFees, reviewFee, loadAdmins, addAdmin, removeAdmin, adminDeleteListing, toast } = useStore();
+  const [admins, setAdmins] = useState<Admin[] | null>(null);
+  const [mail, setMail] = useState('');
+  const [q, setQ] = useState('');
+  const [doomed, setDoomed] = useState<Listing | null>(null);
+  const [reason, setReason] = useState('');
   const [list, setList] = useState<Entry[] | null>(null);
   const [fees, setFees] = useState<Fee[] | null>(null);
   const [busy, setBusy] = useState('');
@@ -36,6 +42,53 @@ export default function AdminPage() {
     if (isAdmin) load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin]);
+
+  useEffect(() => {
+    if (isRootAdmin) loadAdmins().then(setAdmins).catch(() => toast('ما قدرنا نحمّل المشرفين'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isRootAdmin]);
+
+  const invite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mail.includes('@') || busy) return;
+    setBusy('admin');
+    const err = await addAdmin(mail);
+    if (err) toast(err);
+    else {
+      toast('انضاف مشرف جديد');
+      setMail('');
+      loadAdmins().then(setAdmins).catch(() => {});
+    }
+    setBusy('');
+  };
+
+  const dismiss = async (a: Admin) => {
+    setBusy(a.userId);
+    const err = await removeAdmin(a.userId);
+    if (err) toast(err);
+    else {
+      toast(`انشالت صلاحية ${a.name}`);
+      setAdmins((l) => (l ?? []).filter((x) => x.userId !== a.userId));
+    }
+    setBusy('');
+  };
+
+  const destroy = async () => {
+    if (!doomed || busy) return;
+    setBusy(doomed.id);
+    try {
+      await adminDeleteListing(doomed.id, reason.trim());
+      toast('انحذف الإعلان');
+      setDoomed(null);
+      setReason('');
+    } catch {
+      toast('ما انحذف الإعلان، حاول مرة ثانية');
+    }
+    setBusy('');
+  };
+
+  const needle = q.trim().toLowerCase();
+  const found = all.filter((l) => !needle || `${l.title} ${l.ownerName} ${l.city}`.toLowerCase().includes(needle)).slice(0, needle ? 40 : 8);
 
   const decide = async (id: string, status: 'approved' | 'rejected') => {
     setBusy(id);
@@ -123,6 +176,87 @@ export default function AdminPage() {
           ))}
         </AnimatePresence>
       )}
+
+      <h2 className="h3 admin-h">الإعلانات</h2>
+      <label className="search admin-search">
+        <Search size={18} />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="ابحث باسم الإعلان أو صاحبه أو المدينة…" aria-label="بحث في الإعلانات" />
+      </label>
+      <p className="hint admin-count">{needle ? `${found.length} نتيجة` : `أحدث ${found.length} من ${all.length} إعلان — ابحث عشان توصل لإعلان محدد`}</p>
+      {found.length === 0 ? <p className="hint admin-none">ما فيه إعلان بهذا البحث.</p> : (
+        <AnimatePresence initial={false}>
+          {found.map((l) => (
+            <motion.div layout key={l.id} className="offer admin-listing" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: 40 }}>
+              <Link href={`/listing/${l.id}`} className="mine-thumb"><ListingArt listing={l} iconSize={22} /></Link>
+              <div className="offer-main">
+                <div className="offer-top">
+                  <Link href={`/listing/${l.id}`}><strong>{l.title}</strong></Link>
+                  <span className="status">{KINDS.find((k) => k.id === l.kind)?.name}</span>
+                  {l.kind === 'auction' && !l.startsAt && <span className="status status-demo">غير مفعّل</span>}
+                </div>
+                <div className="offer-sub">
+                  <span>{l.ownerId === me.id ? 'إعلانك' : `صاحبه: ${l.ownerName}`}</span>
+                  <span>{l.city}</span>
+                  <span suppressHydrationWarning>{timeAgo(l.createdAt)}</span>
+                </div>
+              </div>
+              <button className="btn btn-ghost btn-sm admin-del" onClick={() => { setDoomed(l); setReason(''); }}><Trash2 size={15} /> حذف</button>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      )}
+
+      {isRootAdmin && (
+        <>
+          <h2 className="h3 admin-h">المشرفون</h2>
+          <p className="hint admin-count">المشرف يفعّل تحويلات المزادات ويحذف الإعلانات. إضافة المشرفين وإزالتهم لك أنت فقط.</p>
+          <form className="want-input" onSubmit={invite}>
+            <input className="input" dir="ltr" type="email" value={mail} onChange={(e) => setMail(e.target.value)} placeholder="بريد حساب المشرف في الموقع" aria-label="بريد المشرف الجديد" />
+            <button className="btn btn-primary" disabled={!mail.includes('@') || busy === 'admin'}><UserPlus size={16} /> أضف مشرف</button>
+          </form>
+          {admins === null ? <div className="skeleton admin-skel" /> : admins.map((a) => (
+            <div key={a.userId} className="offer admin-listing">
+              <span className="offer-thumb"><ShieldCheck size={22} strokeWidth={1.5} /></span>
+              <div className="offer-main">
+                <div className="offer-top"><strong>{a.name}</strong>{a.isRoot && <span className="status status-accepted">أساسي</span>}{a.userId === me.id && <span className="status">أنت</span>}</div>
+                <div className="offer-sub"><span dir="ltr">{a.email}</span></div>
+              </div>
+              {!a.isRoot && <button className="btn btn-ghost btn-sm admin-del" disabled={busy === a.userId} onClick={() => dismiss(a)}><X size={15} /> إزالة</button>}
+            </div>
+          ))}
+        </>
+      )}
+
+      <AnimatePresence>
+        {doomed && (
+          <motion.div className="overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => !busy && setDoomed(null)}>
+            <motion.div
+              className="modal" role="dialog" aria-modal="true" aria-label="حذف إعلان" onClick={(e) => e.stopPropagation()}
+              initial={{ opacity: 0, y: 40, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 30 }} transition={{ type: 'spring', stiffness: 320, damping: 30 }}
+            >
+              <div className="modal-head">
+                <div>
+                  <h2>حذف الإعلان؟</h2>
+                  <p>{doomed.title} — {doomed.ownerName}</p>
+                </div>
+                <button type="button" className="icon-btn" onClick={() => setDoomed(null)} aria-label="إغلاق"><X size={18} /></button>
+              </div>
+              <p className="hint admin-warn">
+                الحذف نهائي وما ينرجع: ينحذف الإعلان مع كل عروضه ومزايداته ومحادثاته.
+                {doomed.kind === 'auction' && doomed.startsAt ? ' هذا مزاد مفعّل — لو فيه رسوم مدفوعة عليه، استرجاعها عليك حسب سياسة الموقع.' : ''}
+              </p>
+              <label className="field">
+                <span className="label">سبب الحذف (يُحفظ في سجل الإدارة)</span>
+                <input className="input" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="مثال: غرض ممنوع، إعلان مكرر، احتيال…" maxLength={300} autoFocus />
+              </label>
+              <div className="pledge-actions admin-actions">
+                <button className="btn btn-danger btn-lg" disabled={!!busy} onClick={destroy}><Trash2 size={17} /> {busy ? 'جاري الحذف…' : 'احذف الإعلان نهائياً'}</button>
+                <button className="btn btn-ghost btn-lg" disabled={!!busy} onClick={() => setDoomed(null)}>إلغاء</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
