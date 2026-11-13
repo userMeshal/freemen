@@ -558,3 +558,53 @@ begin
     alter publication supabase_realtime add table public.messages;
   end if;
 end $$;
+
+-- ════════════════════════════════════════════════════════════════
+--  المرحلة 5: المحادثات مفتوحة لكل المستخدمين
+--  أي مستخدم مسجّل يراسل صاحب الإعلان مباشرة، دون انتظار قبول عرض.
+--  المحادثة = إعلان + الطرف المهتم (peer). طرفاها: صاحب الإعلان والطرف المهتم فقط.
+-- ════════════════════════════════════════════════════════════════
+
+alter table public.messages add column if not exists listing_id uuid references public.listings (id) on delete cascade;
+alter table public.messages add column if not exists peer_id uuid references public.profiles (id) on delete cascade;
+create index if not exists messages_thread_idx on public.messages (listing_id, peer_id, created_at);
+
+-- ترحيل رسائل المرحلة 4 (المربوطة بعرض مقبول أو مزاد) إلى الشكل الجديد، ثم فك ارتباطها القديم حتى لا تنحذف بسحب العرض
+alter table public.messages drop constraint if exists messages_check;
+update public.messages m set listing_id = o.listing_id, peer_id = o.from_id
+  from public.offers o where m.offer_id = o.id and m.listing_id is null;
+update public.messages m set listing_id = l.id, peer_id = l.top_bidder
+  from public.listings l where m.auction_id = l.id and m.listing_id is null and l.top_bidder is not null;
+update public.messages set offer_id = null, auction_id = null where listing_id is not null and (offer_id is not null or auction_id is not null);
+alter table public.messages drop constraint if exists messages_thread_chk;
+alter table public.messages add constraint messages_thread_chk check (listing_id is not null and peer_id is not null) not valid;
+
+-- الإعلان ظاهر للناس؟ (المزاد غير المفعّل لا يُراسَل صاحبه)
+create or replace function public.listing_visible(lid uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.listings where id = lid and (kind <> 'auction' or starts_at is not null));
+$$;
+
+-- صاحب الإعلان لا يبدأ مراسلة أي مستخدم عشوائي: يرد على من راسله، أو يراسل من قدّم عرضاً أو تصدّر مزاده
+create or replace function public.owner_may_message(lid uuid, peer uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.messages where listing_id = lid and peer_id = peer and sender_id = peer)
+      or exists (select 1 from public.offers where listing_id = lid and from_id = peer)
+      or exists (select 1 from public.listings where id = lid and top_bidder = peer);
+$$;
+
+drop policy if exists "messages read parties" on public.messages;
+drop policy if exists "messages send parties" on public.messages;
+create policy "messages read parties" on public.messages for select to authenticated
+  using (peer_id = auth.uid() or public.owns_listing(listing_id));
+create policy "messages send parties" on public.messages for insert to authenticated
+  with check (
+    sender_id = auth.uid() and listing_id is not null and peer_id is not null
+    and (
+      (peer_id = auth.uid() and not public.owns_listing(listing_id) and public.listing_visible(listing_id))
+      or (peer_id <> auth.uid() and public.owns_listing(listing_id) and public.owner_may_message(listing_id, peer_id))
+    )
+  );
+revoke insert, update, delete on public.messages from anon, authenticated;
+revoke insert (offer_id, auction_id) on public.messages from authenticated;
+grant insert (listing_id, peer_id, sender_id, body) on public.messages to authenticated;

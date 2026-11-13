@@ -627,3 +627,8 @@ a.offer:hover { border-color: var(--line-strong); }
   .chat-body { padding: 12px; }
   .msg { max-width: 86%; }
 }
+.thread .offer-top small { margin-inline-start: auto; color: var(--muted); font-size: 12.5px; }
+.thread.is-new { border-color: var(--line-strong); }
+.thread.is-new .thread-last { color: var(--ink); font-weight: 500; }
+.thread-last { margin-top: 4px; color: var(--muted); font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.detail-actions .chat-link { flex: none; }

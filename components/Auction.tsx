@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import Link from 'next/link';
 import { Check, Clock, Copy, Gavel, Hourglass, Lock, MessageCircle, MessagesSquare, Trophy, Wallet, X } from 'lucide-react';
-import { auctionPhase, auctionThread, formatSAR, minNextBid, parseAmount, registrationCloses, timeAgo, timeLeft, type Bid, type Listing } from '@/lib/data';
+import { auctionPhase, formatSAR, listingThread, minNextBid, parseAmount, registrationCloses, timeAgo, timeLeft, type Bid, type Listing } from '@/lib/data';
 import { SITE } from '@/lib/site';
 import { useStore } from '@/lib/store';
 import { EASE } from './ui';
@@ -251,9 +251,9 @@ export default function AuctionPanel({ listing, mine }: { listing: Listing; mine
         >
           {(mine || leading) && listing.topBidder && (
             <div className="offer-actions">
-              <Link className="btn btn-primary btn-sm chat-link" href={`/chat/${auctionThread(listing.id)}`}>
-                <MessagesSquare size={15} /> {unread.includes(auctionThread(listing.id)) ? 'رسالة جديدة' : 'المحادثة'}
-                {unread.includes(auctionThread(listing.id)) && <span className="dot" aria-hidden />}
+              <Link className="btn btn-primary btn-sm chat-link" href={`/chat/${listingThread(listing.id, listing.topBidder)}`}>
+                <MessagesSquare size={15} /> {unread.includes(listingThread(listing.id, listing.topBidder)) ? 'رسالة جديدة' : 'المحادثة'}
+                {unread.includes(listingThread(listing.id, listing.topBidder)) && <span className="dot" aria-hidden />}
               </Link>
               {wa && <a className="btn btn-ghost btn-sm" href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer"><MessageCircle size={15} /> واتساب</a>}
             </div>

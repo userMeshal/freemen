@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Check, MessageCircle, MessagesSquare, Repeat2, ShoppingBag, X } from 'lucide-react';
-import { fairness, formatSAR, listingValue, offerThread, offerValue, timeAgo, type Listing, type Offer } from '@/lib/data';
+import { fairness, formatSAR, listingValue, listingThread, offerValue, timeAgo, type Listing, type Offer } from '@/lib/data';
 import { useStore } from '@/lib/store';
 import { CategoryIcon, EASE } from './ui';
 
@@ -11,7 +11,8 @@ const STATUS = { pending: 'بانتظار الرد', accepted: 'تم القبو�
 
 export default function OfferRow({ offer, listing, role }: { offer: Offer; listing?: Listing; role: 'owner' | 'sender' }) {
   const { setOfferStatus, withdrawOffer, toast, contactFor, unread } = useStore();
-  const thread = offerThread(offer.id);
+  // المحادثة بين صاحب الإعلان ومرسل العرض — متاحة من لحظة إرسال العرض
+  const thread = listingThread(offer.listingId, offer.fromId);
   const hasUnread = unread.includes(thread);
   const buy = offer.kind === 'buy';
   const f = listing && !buy ? fairness(listingValue(listing), offerValue(offer)) : null;
@@ -72,13 +73,13 @@ export default function OfferRow({ offer, listing, role }: { offer: Offer; listi
           </div>
         )}
 
-        {offer.status === 'accepted' && (
+        {offer.status !== 'rejected' && !offer.demo && (
           <motion.div className="offer-deal" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
-            <Link className="btn btn-primary btn-sm chat-link" href={`/chat/${thread}`}>
+            <Link className={`btn btn-sm chat-link ${offer.status === 'accepted' ? 'btn-primary' : 'btn-ghost'}`} href={`/chat/${thread}`}>
               <MessagesSquare size={15} /> {hasUnread ? 'رسالة جديدة' : 'المحادثة'}
               {hasUnread && <span className="dot" aria-hidden />}
             </Link>
-            {wa && !offer.demo && (
+            {offer.status === 'accepted' && wa && (
               <a className="btn btn-ghost btn-sm" href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer"><MessageCircle size={15} /> واتساب</a>
             )}
           </motion.div>

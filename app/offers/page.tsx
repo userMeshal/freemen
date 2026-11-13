@@ -3,24 +3,26 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Gavel, Heart, Inbox, LogOut, Plus, Send } from 'lucide-react';
+import { Gavel, Heart, Inbox, LogOut, MessagesSquare, Plus, Send } from 'lucide-react';
 import OfferRow from '@/components/OfferRow';
 import { ListingArt, ListingCard } from '@/components/ui';
-import { auctionEnded, auctionStatus, formatSAR } from '@/lib/data';
+import { auctionEnded, auctionStatus, formatSAR, timeAgo } from '@/lib/data';
 import { useStore } from '@/lib/store';
 
 const TABS = [
   { id: 'in', label: 'وصلتني', icon: Inbox },
   { id: 'out', label: 'أرسلتها', icon: Send },
+  { id: 'chat', label: 'الرسائل', icon: MessagesSquare },
   { id: 'fav', label: 'المفضلة', icon: Heart },
 ] as const;
 
 export default function OffersPage() {
-  const { listings, offers, all, favs, me, ready, cloud, authed, email, signOut, entries } = useStore();
+  const { listings, offers, all, favs, me, ready, cloud, authed, email, signOut, entries, chatHeads, unread } = useStore();
+  const threads = Object.values(chatHeads).sort((a, b) => b.lastAt - a.lastAt);
   const [tab, setTab] = useState<(typeof TABS)[number]['id']>('in');
   const sent = offers.filter((o) => o.fromId === me.id);
   const favList = all.filter((l) => favs.includes(l.id));
-  const counts = { in: offers.length - sent.length, out: sent.length + entries.length, fav: favList.length };
+  const counts = { in: offers.length - sent.length, out: sent.length + entries.length, chat: unread.length, fav: favList.length };
   const ENTRY = { pending: 'قيد التحقق من التحويل', approved: 'دخولك مفعّل', rejected: 'لم يتطابق التحويل' } as const;
 
   if (ready && !authed) {
@@ -114,6 +116,32 @@ export default function OffersPage() {
                 })}
                 {sent.map((o) => <OfferRow key={o.id} offer={o} listing={all.find((l) => l.id === o.listingId)} role="sender" />)}
               </>
+            )
+          )}
+
+          {tab === 'chat' && (
+            threads.length === 0 ? (
+              <Empty title="ما فيه رسائل للحين" text="افتح أي إعلان واضغط «راسل صاحب الإعلان» عشان تسأل عنه." href="/browse" cta="تصفّح السوق" />
+            ) : (
+              threads.map((h) => {
+                const l = all.find((x) => x.id === h.listingId);
+                const mine = l?.ownerId === me.id;
+                const isNew = unread.includes(h.thread);
+                return (
+                  <Link key={h.thread} href={`/chat/${h.thread}`} className={`offer thread ${isNew ? 'is-new' : ''}`}>
+                    <span className="mine-thumb">{l ? <ListingArt listing={l} iconSize={22} /> : <span className="offer-thumb"><MessagesSquare size={22} /></span>}</span>
+                    <div className="offer-main">
+                      <div className="offer-top">
+                        <strong>{mine ? h.peerName ?? 'مستخدم' : l?.ownerName ?? 'صاحب الإعلان'}</strong>
+                        {isNew && <span className="dot" aria-label="رسالة جديدة" />}
+                        <small suppressHydrationWarning>{timeAgo(h.lastAt)}</small>
+                      </div>
+                      <div className="offer-sub"><span>{l?.title ?? 'إعلان محذوف'}</span></div>
+                      <p className="thread-last">{h.lastFrom === me.id ? 'أنت: ' : ''}{h.lastBody}</p>
+                    </div>
+                  </Link>
+                );
+              })
             )
           )}
 
