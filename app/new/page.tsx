@@ -6,6 +6,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowLeft, ArrowRight, Check, Gavel, ImagePlus, Plus, Repeat2, Tag, X } from 'lucide-react';
 import { CategoryIcon, EASE } from '@/components/ui';
 import { CATEGORIES, CITIES, CONDITIONS, formatSAR, parseAmount, tierOf, type Kind, type Listing } from '@/lib/data';
+import PledgeModal from '@/components/PledgeModal';
+import { PLEDGE } from '@/lib/pledge';
 import { SITE } from '@/lib/site';
 import { fileToDataUrl, useStore } from '@/lib/store';
 
@@ -28,6 +30,8 @@ export default function NewListing() {
   const [step, setStep] = useState(0);
   const [dir, setDir] = useState(1);
   const [done, setDone] = useState<Listing | null>(null);
+  /** نافذة التعهد تظهر بعد الضغط على النشر وقبل النشر الفعلي */
+  const [pledging, setPledging] = useState(false);
 
   const [kind, setKind] = useState<Kind>('swap');
   const [title, setTitle] = useState('');
@@ -81,8 +85,10 @@ export default function NewListing() {
         minIncrement: kind === 'auction' ? increment : undefined,
         durationMinutes: kind === 'auction' ? minutes : undefined,
         bidsCount: 0,
+        pledgeVersion: PLEDGE.version,
         ownerName: name.trim(), whatsapp: whatsapp.trim() || undefined,
       });
+      setPledging(false);
       setDone(l);
       toast(l.kind === 'auction' ? 'انحفظ مزادك' : 'انتشر عرضك');
     } catch {
@@ -311,12 +317,16 @@ export default function NewListing() {
         </motion.div>
       </AnimatePresence>
 
+      <AnimatePresence>
+        {pledging && <PledgeModal busy={busy} onConfirm={publish} onClose={() => setPledging(false)} />}
+      </AnimatePresence>
+
       <div className="wizard-nav">
         {step > 0 ? <button className="btn btn-ghost btn-lg" onClick={() => go(-1)}><ArrowRight size={18} /> رجوع</button> : <span />}
         {step < 2 ? (
           <button className="btn btn-primary btn-lg" disabled={!ok} onClick={() => go(1)}>التالي <ArrowLeft size={18} /></button>
         ) : (
-          <motion.button className="btn btn-primary btn-lg" disabled={!ok || busy} onClick={publish} whileTap={{ scale: 0.97 }}>
+          <motion.button className="btn btn-primary btn-lg" disabled={!ok || busy} onClick={() => setPledging(true)} whileTap={{ scale: 0.97 }}>
             {busy ? 'جاري النشر…' : kind === 'auction' ? 'احفظ المزاد' : 'انشر العرض'} <Check size={18} />
           </motion.button>
         )}

@@ -420,3 +420,83 @@ begin
     alter publication supabase_realtime add table public.auction_entries;
   end if;
 end $$;
+
+-- ════════════════════════════════════════════════════════════════
+--  المرحلة 3: التعهد بسداد رسوم الموقع عند نشر الإعلان
+--  لا يُنشر أي إعلان إلا ومعه موافقة صريحة على نسخة التعهد السارية.
+--  الفرض هنا في القاعدة نفسها، فلا يتجاوزه طلب API مباشر.
+-- ════════════════════════════════════════════════════════════════
+
+-- نُسخ التعهد: النص المعتمد يُحفظ هنا، والموافقة تنسخه كما هو لحظة القبول
+create table if not exists public.pledge_versions (
+  version text primary key,
+  body text not null,
+  fee integer not null check (fee > 0),
+  active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+alter table public.pledge_versions enable row level security;
+drop policy if exists "pledge versions read" on public.pledge_versions;
+create policy "pledge versions read" on public.pledge_versions for select using (true);
+revoke insert, update, delete on public.pledge_versions from anon, authenticated;
+
+-- النص يجب أن يطابق lib/pledge.ts حرفياً. أي تعديل على النص = نسخة جديدة (v2) لا تعديل على القديمة.
+insert into public.pledge_versions (version, fee, body) values ('v1', 20,
+  'أقسم بالله العظيم أنني في حال إتمام بيع السلعة المعلن عنها عن طريق هذا الموقع، أتعهد بسداد رسوم الموقع البالغة 20 ريالًا سعوديًا عن كل عملية بيع مكتملة.' || E'\n\n' ||
+  'وأقر بأن هذه الرسوم حق للموقع، وأتعهد بسدادها بعد إتمام البيع، دون مماطلة أو تأخير.' || E'\n\n' ||
+  'والله على ما أقول شهيد.')
+on conflict (version) do nothing;
+
+-- سجل الموافقات: من وافق، على أي إعلان، متى، وعلى أي نص
+create table if not exists public.pledges (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  listing_id uuid not null unique,          -- بدون مفتاح أجنبي عمداً: السجل يبقى لو انحذف الإعلان
+  listing_title text not null,
+  version text not null references public.pledge_versions (version),
+  body text not null,                       -- نسخة النص كما وافق عليها
+  fee integer not null,
+  accepted_at timestamptz not null default now()
+);
+create index if not exists pledges_user_idx on public.pledges (user_id, accepted_at desc);
+alter table public.pledges enable row level security;
+drop policy if exists "pledges read own or admin" on public.pledges;
+create policy "pledges read own or admin" on public.pledges for select to authenticated
+  using (user_id = auth.uid() or public.is_admin());
+-- لا كتابة مباشرة: السجل ينشأ من trigger النشر فقط، ولا يُعدَّل ولا يُحذف
+revoke insert, update, delete on public.pledges from anon, authenticated;
+
+alter table public.listings add column if not exists pledge_version text;
+alter table public.listings add column if not exists pledge_accepted_at timestamptz;
+
+-- قبل الإدراج: لا إعلان بدون موافقة على نسخة سارية؛ ووقت الموافقة من ساعة الخادم
+create or replace function public.require_pledge()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.pledge_version is null
+     or not exists (select 1 from public.pledge_versions where version = new.pledge_version and active) then
+    raise exception 'PLEDGE_REQUIRED';
+  end if;
+  new.pledge_accepted_at := now();
+  return new;
+end $$;
+
+-- بعد الإدراج: نسجّل الموافقة مربوطة بالمستخدم والإعلان مع نسخة النص
+create or replace function public.record_pledge()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  insert into public.pledges (user_id, listing_id, listing_title, version, body, fee, accepted_at)
+  select new.owner_id, new.id, new.title, v.version, v.body, v.fee, new.pledge_accepted_at
+  from public.pledge_versions v where v.version = new.pledge_version;
+  return null;
+end $$;
+
+drop trigger if exists listings_require_pledge on public.listings;
+create trigger listings_require_pledge before insert on public.listings
+  for each row execute function public.require_pledge();
+drop trigger if exists listings_record_pledge on public.listings;
+create trigger listings_record_pledge after insert on public.listings
+  for each row execute function public.record_pledge();
+
+-- المستخدم يرسل رقم النسخة عند النشر فقط؛ لا يكتب وقت الموافقة ولا يغيّرهما لاحقاً
+grant insert (pledge_version) on public.listings to authenticated;

@@ -20,6 +20,7 @@ const toListing = (r: any): Listing => ({
   id: r.id, title: r.title, category: r.category, condition: r.condition, city: r.city, description: r.description ?? '',
   wants: r.wants ?? [], openToOffers: r.open_to_offers, valueTier: r.value_tier, estValue: r.est_value ?? undefined, images: r.images ?? [],
   ownerId: r.owner_id, ownerName: r.owner?.name ?? 'مستخدم', createdAt: +new Date(r.created_at), offersCount: r.offers_count ?? 0,
+  pledgeVersion: r.pledge_version ?? undefined,
   kind: r.kind ?? 'swap', price: r.price ?? undefined, minIncrement: r.min_increment ?? undefined,
   startsAt: r.starts_at ? +new Date(r.starts_at) : undefined, durationMinutes: r.duration_minutes ?? undefined,
   endsAt: r.ends_at ? +new Date(r.ends_at) : undefined, currentBid: r.current_bid ?? undefined, topBidder: r.top_bidder ?? undefined, bidsCount: r.bids_count ?? 0,
@@ -208,16 +209,18 @@ export function CloudProvider({ children }: { children: React.ReactNode }) {
     const addListing: Ctx['addListing'] = async (l) => {
       const owner_id = need();
       const images = await Promise.all(l.images.map(upload));
-      const { data, error } = await sb
-        .from('listings')
-        .insert({
+      const row = {
           owner_id, title: l.title, category: l.category, condition: l.condition, city: l.city, description: l.description,
           wants: l.wants, open_to_offers: l.openToOffers, value_tier: l.valueTier, est_value: l.estValue ?? null, images,
           // أعمدة البيع والمزاد تنرسل لعروضها فقط، فيظل نشر عروض البدل شغّالاً على قاعدة لم تُحدَّث بعد
           ...(l.kind === 'swap' ? {} : { kind: l.kind, price: l.price ?? null, min_increment: l.minIncrement ?? 10, ...(l.kind === 'auction' ? { duration_minutes: l.durationMinutes ?? 60 } : {}) }),
-        })
-        .select(LISTING_COLS)
-        .single();
+      };
+      // الموافقة على التعهد جزء من طلب النشر نفسه: القاعدة ترفض الإعلان بدونها وتسجّل الموافقة
+      let { data, error } = await sb.from('listings').insert({ ...row, pledge_version: l.pledgeVersion ?? null }).select(LISTING_COLS).single();
+      // قاعدة لم تُحدَّث بعد (لا يوجد عمود التعهد): ننشر بدون تسجيل حتى لا يتعطل النشر في فترة الترقية
+      if (error && (error.code === 'PGRST204' || error.code === '42703') && /pledge_version/.test(error.message)) {
+        ({ data, error } = await sb.from('listings').insert(row).select(LISTING_COLS).single());
+      }
       if (error) throw error;
       const listing = toListing(data);
       setAll((a) => [listing, ...a]);

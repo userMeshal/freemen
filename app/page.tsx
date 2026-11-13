@@ -7,6 +7,7 @@ import { ArrowLeft, Camera, Handshake, MessagesSquare, Scale, ShieldCheck, Spark
 import HeroSwap from '@/components/HeroSwap';
 import { CategoryIcon, Counter, EASE, ListingCard, Reveal } from '@/components/ui';
 import { CATEGORIES, CITIES, auctionEnded } from '@/lib/data';
+import { PLEDGE } from '@/lib/pledge';
 import { SITE } from '@/lib/site';
 import { useStore } from '@/lib/store';
 
@@ -77,9 +78,9 @@ function Bento() {
       <div className="bento">
         <Reveal className="tile tile-dark tile-wide">
           <Wallet size={26} strokeWidth={1.5} />
-          <div className="tile-big"><Counter to={0} /> <small>ريال عمولة</small></div>
-          <h3>بدون عمولة على البدل والبيع</h3>
-          <p>المنصة ما تاخذ نسبة من بدلتك ولا بيعتك. الرسوم على المزادات فقط: {SITE.listingFee} ريال لعرض المزاد و{SITE.auctionFee} ريال لدخوله.</p>
+          <div className="tile-big"><Counter to={PLEDGE.fee} /> <small>ريال بعد البيع</small></div>
+          <h3>النشر مجاني، والرسم بعد البيع فقط</h3>
+          <p>ما تدفع شي عند النشر. لو تم البيع عن طريق الموقع، رسم ثابت {PLEDGE.fee} ريال — مو نسبة من السعر. والمزادات لها رسومها: {SITE.listingFee} ريال للعرض و{SITE.auctionFee} ريال للدخول.</p>
           <div className="tile-glow" />
         </Reveal>
         <Reveal className="tile" delay={0.08}>

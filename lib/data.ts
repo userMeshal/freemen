@@ -70,6 +70,8 @@ export type Listing = {
   whatsapp?: string;
   createdAt: number;
   seedOffers?: number;
+  /** نسخة تعهد سداد رسوم الموقع اللي وافق عليها المعلن عند النشر */
+  pledgeVersion?: string;
   /** عدد عروض البدل من قاعدة البيانات */
   offersCount?: number;
 };

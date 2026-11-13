@@ -2,12 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { SEED, auctionPhase, listingValue, minNextBid, tierOf, type Bid, type Entry, type Fee, type Listing, type Offer } from './data';
+import { PLEDGE, pledgeBody } from './pledge';
 import { SITE } from './site';
 import { StoreCtx, useToasts, type Ctx, type Me } from './ctx';
 
 /** الوضع التجريبي: كل شي ينحفظ في متصفح الزائر، مع عروض نموذجية وردود محاكاة */
 type Live = Partial<Pick<Listing, 'currentBid' | 'bidsCount' | 'topBidder' | 'startsAt' | 'endsAt'>>;
-type State = { me: Me; listings: Listing[]; offers: Offer[]; favs: string[]; bids: Bid[]; entries: Entry[]; fees: Fee[]; live: Record<string, Live> };
+type State = { me: Me; listings: Listing[]; offers: Offer[]; favs: string[]; bids: Bid[]; entries: Entry[]; fees: Fee[]; live: Record<string, Live>;
+  pledges: { listingId: string; userId: string; version: string; body: string; fee: number; acceptedAt: number }[];
+};
 
 const KEY = 'badal:v1';
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -18,7 +21,7 @@ function demoValue(listing: Listing, i: number) {
   const estValue = round(i ? target * 0.7 : target * 1.05);
   return { estValue, valueTier: tierOf(estValue), cash: i ? round(target * 0.25) : 0 };
 }
-const empty: State = { me: { id: '', name: '', city: 'الرياض', whatsapp: '' }, listings: [], offers: [], favs: [], bids: [], entries: [], fees: [], live: {} };
+const empty: State = { me: { id: '', name: '', city: 'الرياض', whatsapp: '' }, listings: [], offers: [], favs: [], bids: [], entries: [], fees: [], live: {}, pledges: [] };
 
 export function LocalProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<State>(empty);
@@ -49,8 +52,13 @@ export function LocalProvider({ children }: { children: React.ReactNode }) {
     const setMe: Ctx['setMe'] = async (me) => setState((s) => ({ ...s, me: { ...s.me, ...me } }));
 
     const addListing: Ctx['addListing'] = async (l) => {
+      if (l.pledgeVersion !== PLEDGE.version) throw new Error('PLEDGE_REQUIRED');
       const listing: Listing = { ...l, id: `u${uid()}`, ownerId: state.me.id, createdAt: Date.now() };
-      setState((s) => ({ ...s, listings: [listing, ...s.listings] }));
+      setState((s) => ({
+        ...s,
+        listings: [listing, ...s.listings],
+        pledges: [{ listingId: listing.id, userId: s.me.id, version: PLEDGE.version, body: pledgeBody(), fee: PLEDGE.fee, acceptedAt: Date.now() }, ...(s.pledges ?? [])],
+      }));
       if (listing.kind !== 'swap') return listing;
       const demo = [
         { fromName: 'سارة', itemTitle: 'ساعة أبل الترا 2', itemCategory: 'electronics', itemCondition: 'شبه جديد', note: 'ساعتي نظيفة ومعها كل أغراضها، يناسبك البدل؟' },
