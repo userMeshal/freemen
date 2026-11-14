@@ -19,7 +19,7 @@ export async function loginAction(_prev: AuthState, formData: FormData): Promise
   const email = emailSchema.safeParse(formData.get("email"));
   const password = String(formData.get("password") ?? "");
   if (!email.success || !password) return { error: "أدخل البريد الإلكتروني وكلمة المرور." };
-  if (!(await rateLimit(`login:${ip}`, 10, 900)) || !(await rateLimit(`login:${email.data}`, 8, 900)))
+  if (!(await rateLimit(`login:${ip}`, 80, 900)) || !(await rateLimit(`login:${email.data}`, 8, 900)))
     return { error: "محاولات كثيرة. انتظر 15 دقيقة ثم أعد المحاولة." };
 
   const rows = await db.select().from(customers).where(eq(customers.email, email.data)).limit(1);
@@ -40,7 +40,7 @@ const registerSchema = z.object({
 
 export async function registerAction(_prev: AuthState, formData: FormData): Promise<AuthState> {
   const ip = await clientIp();
-  if (!(await rateLimit(`register:${ip}`, 6, 3600))) return { error: "محاولات كثيرة. حاول لاحقًا." };
+  if (!(await rateLimit(`register:${ip}`, 40, 3600))) return { error: "محاولات كثيرة. حاول لاحقًا." };
 
   const parsed = registerSchema.safeParse({
     name: formData.get("name"),
