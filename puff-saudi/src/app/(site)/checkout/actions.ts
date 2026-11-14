@@ -94,7 +94,9 @@ async function startPayment(order: {
 
 export async function placeOrderAction(input: CheckoutInput): Promise<CheckoutResult> {
   const ip = await clientIp();
-  if (!(await rateLimit(`checkout:${ip}`, 12, 600))) {
+  // شبكات الجوال تشارك عنوان IP واحدًا بين عملاء كثيرين (CGNAT)، فحدّ الـ IP واسع ويعمل كصمّام أمان فقط؛
+  // الحماية الفعلية من التكرار المزعج تكون لكل رقم جوال (أدناه).
+  if (!(await rateLimit(`checkout:${ip}`, 200, 600))) {
     return { ok: false, error: "محاولات كثيرة. انتظر قليلًا ثم أعد المحاولة." };
   }
 
@@ -122,6 +124,10 @@ export async function placeOrderAction(input: CheckoutInput): Promise<CheckoutRe
   }
   if (data.paymentMethod === "edfapay" && !edfapayConfigured()) {
     return { ok: false, error: "الدفع الإلكتروني غير متاح حاليًا.", code: "payment" };
+  }
+
+  if (!(await rateLimit(`checkout-phone:${phone}`, 8, 600))) {
+    return { ok: false, error: "محاولات كثيرة بهذا الرقم. انتظر بضع دقائق ثم أعد المحاولة." };
   }
 
   const customer = await getCustomer();
@@ -170,8 +176,10 @@ async function findOrder(number: string, token: string) {
 
 export async function retryPaymentAction(input: { number: string; token: string }): Promise<CheckoutResult> {
   const ip = await clientIp();
-  if (!(await rateLimit(`pay-retry:${ip}`, 10, 600))) return { ok: false, error: "محاولات كثيرة. انتظر قليلًا." };
   const { number, token } = refSchema.parse(input);
+  // الحد لكل طلب (لا لكل IP) حتى لا يتأثر العملاء الذين يتشاركون عنوان الشبكة نفسه
+  if (!(await rateLimit(`pay-retry:${ip}`, 200, 600)) || !(await rateLimit(`pay-retry-order:${number.toUpperCase()}`, 8, 600)))
+    return { ok: false, error: "محاولات كثيرة. انتظر قليلًا." };
   const order = await findOrder(number, token);
   if (!order) return { ok: false, error: "الطلب غير موجود." };
   if (order.paymentStatus === "paid") return { ok: true, redirect: `/order/${order.number}?t=${order.accessToken}`, external: false };
