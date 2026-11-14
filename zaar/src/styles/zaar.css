@@ -1,0 +1,105 @@
+/* ─────────────────────────────── إضافات منصة زار ─────────────────────────────── */
+
+/* سطوح مشتقة من لوحة المتجر */
+.bg-paper-deep { background-color: color-mix(in srgb, rgb(var(--paper)) 90%, rgb(var(--ink))); }
+.bg-paper-card { background-color: color-mix(in srgb, rgb(var(--paper)) 55%, #fff); }
+.text-mute { color: rgb(var(--ink) / 0.6); }
+
+/* لوحة المنتج المولّدة (بديل الصورة) — نفس تدرجات «حطّها» */
+.p-art {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: #16161a;
+  background:
+    radial-gradient(60% 70% at 18% 20%, hsl(calc(var(--h) + 8) 95% 78%) 0%, transparent 70%),
+    radial-gradient(55% 65% at 85% 85%, hsl(calc(var(--h) + 60) 90% 76%) 0%, transparent 70%),
+    radial-gradient(50% 50% at 80% 10%, hsl(calc(var(--h) - 40) 95% 86%) 0%, transparent 70%),
+    hsl(var(--h) 60% 93%);
+}
+.p-art > svg { width: 34%; height: auto; max-width: 9rem; stroke-width: 1.1; }
+
+/* هالات لونية (من «حطّها») — تُستخدم في صفحات المنصة */
+.z-orbs { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.z-orb { position: absolute; border-radius: 50%; filter: blur(90px); opacity: 0.55; will-change: transform; }
+.z-orb-1 { width: 46vw; height: 46vw; top: -12%; left: -8%; animation: zDrift 18s ease-in-out infinite alternate; }
+.z-orb-2 { width: 40vw; height: 40vw; bottom: -22%; left: 22%; animation: zDrift 22s ease-in-out infinite alternate-reverse; }
+.z-orb-3 { width: 30vw; height: 30vw; top: 8%; right: -10%; animation: zDrift 26s ease-in-out infinite alternate; }
+@keyframes zDrift { to { transform: translate(8vw, 6vh) scale(1.15) rotate(20deg); } }
+@keyframes zSpin { to { transform: rotate(360deg); } }
+@keyframes zPulse { 70% { box-shadow: 0 0 0 9px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+.z-dot { width: 8px; height: 8px; border-radius: 50%; background: rgb(var(--accent)); box-shadow: 0 0 0 0 rgb(var(--accent)); animation: zPulse 2s infinite; }
+@keyframes zBounce { 0%, 80%, 100% { transform: translateY(0); opacity: 0.35; } 40% { transform: translateY(-6px); opacity: 1; } }
+.z-typing span { display: inline-block; width: 7px; height: 7px; margin-inline: 2px; border-radius: 50%; background: currentColor; animation: zBounce 1.2s infinite ease-in-out; }
+.z-typing span:nth-child(2) { animation-delay: 0.15s; }
+.z-typing span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes zShimmer { to { background-position: -200% 0; } }
+.z-skeleton { background: linear-gradient(100deg, rgb(var(--ink) / 0.06) 40%, rgb(var(--ink) / 0.12) 50%, rgb(var(--ink) / 0.06) 60%); background-size: 200% 100%; animation: zShimmer 1.4s linear infinite; }
+@keyframes zPop { from { opacity: 0; transform: translate3d(0, 16px, 0) scale(0.96); } }
+.z-pop { animation: zPop 0.6s var(--ease-expo) both; animation-delay: calc(var(--i, 0) * 60ms); }
+.z-glow { position: absolute; border-radius: 50%; background: conic-gradient(from 0deg, #ffb489, #b9a4ff, #8fd6ff, rgb(var(--accent)), #ffb489); filter: blur(70px); opacity: 0.55; animation: zSpin 14s linear infinite; }
+
+/* شخابيط مرسومة باليد (من شعار «حطّها») */
+.z-scribble-a { stroke: #ff7a3d; }
+.z-scribble-b { stroke: #7c5cff; }
+.z-scribble-c { stroke: #1fa9ff; }
+.z-scribble-accent { stroke: rgb(var(--accent)); }
+.z-scribble-ink { stroke: currentColor; }
+
+/* ───── لوحة التحكم ───── */
+.dash-card { border-radius: 1.5rem; border: 1px solid rgb(var(--ink) / 0.1); background: color-mix(in srgb, rgb(var(--paper)) 45%, #fff); }
+.dash-input {
+  width: 100%; min-height: 2.9rem; padding: 0.65rem 0.95rem; border-radius: 0.9rem;
+  border: 1.5px solid rgb(var(--ink) / 0.14); background: #fff; font-size: 16px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.dash-input:focus { outline: none; border-color: rgb(var(--ink)); box-shadow: 0 0 0 4px rgb(var(--accent) / 0.45); }
+.dash-label { display: block; margin-bottom: 0.4rem; font-size: 0.82rem; font-weight: 600; color: rgb(var(--ink) / 0.75); }
+.dash-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; min-height: 2.75rem; padding: 0 1.15rem;
+  border-radius: 999px; font-family: var(--font-display); font-weight: 600; font-size: 0.85rem; white-space: nowrap;
+  transition: transform 0.2s var(--ease-expo), background-color 0.2s, color 0.2s, border-color 0.2s, opacity 0.2s;
+}
+.dash-btn:active { transform: scale(0.97); }
+.dash-btn[disabled] { opacity: 0.5; pointer-events: none; }
+.dash-btn-ink { background: rgb(var(--ink)); color: rgb(var(--paper)); }
+.dash-btn-ink:hover { background: rgb(var(--accent)); color: rgb(var(--on-accent)); }
+.dash-btn-accent { background: rgb(var(--accent)); color: rgb(var(--on-accent)); }
+.dash-btn-ghost { border: 1.5px solid rgb(var(--ink) / 0.18); }
+.dash-btn-ghost:hover { border-color: rgb(var(--ink)); background: rgb(var(--ink) / 0.04); }
+.dash-btn-danger { border: 1.5px solid #ff4b2b55; color: #d93a1c; }
+.dash-btn-danger:hover { background: #ff4b2b; color: #fff; border-color: #ff4b2b; }
+.dash-btn-sm { min-height: 2.2rem; padding: 0 0.85rem; font-size: 0.76rem; }
+.dash-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.dash-table th { text-align: start; font-weight: 600; font-size: 0.74rem; color: rgb(var(--ink) / 0.55); padding: 0.7rem 1rem; border-bottom: 1px solid rgb(var(--ink) / 0.1); white-space: nowrap; }
+.dash-table td { padding: 0.85rem 1rem; border-bottom: 1px solid rgb(var(--ink) / 0.07); vertical-align: middle; }
+.dash-table tr:last-child td { border-bottom: 0; }
+.dash-table tbody tr { transition: background-color 0.15s; }
+.dash-table tbody tr:hover { background: rgb(var(--ink) / 0.025); }
+
+/* ───── شاشة الافتتاح والستارة تحمل كلمة المتجر ───── */
+#preloader .pl-word.is-ar { direction: rtl; letter-spacing: 0; font-size: clamp(4rem, 26vw, 22rem); line-height: 1.3; }
+
+/* الثيم الجريء داخل حاوية المتجر */
+.t-bold { background: rgb(var(--paper)); color: rgb(var(--ink)); font-family: var(--font-body); min-height: 100vh; }
+.t-soft .wrap { max-width: 1240px; }
+
+/* ───── ربط الثيم الناعم بمتغيرات Tailwind ───── */
+.t-soft { --ink: 13 13 13; --paper: 255 255 255; --header-h: 96px; }
+.t-soft[data-mode='dark'] { --ink: 243 243 241; --paper: 10 10 11; }
+.t-soft .s-hero-word { font-family: "Alexandria", "Unbounded", sans-serif; font-weight: 800; font-size: clamp(64px, 11vw, 150px); line-height: 1.25; letter-spacing: -0.01em; white-space: nowrap; }
+.t-soft .s-hero-logo { width: auto; max-width: 100%; position: relative; display: inline-block; margin: 26px 40px 10px 34px; cursor: pointer; }
+.t-soft .s-hero-logo svg { position: absolute; inset: -34% -14%; width: 128%; height: 168%; overflow: visible; pointer-events: none; }
+.t-soft .s-card-price { display: flex; align-items: baseline; gap: 8px; }
+.t-soft .s-card-price strong { font-size: 19px; font-weight: 700; }
+.t-soft .s-card-price s { color: var(--muted); font-size: 13px; }
+.t-soft .s-sale { position: absolute; bottom: 10px; right: 10px; border: 0; font-size: 12.5px; font-weight: 600; background: #0d0d0d; color: #fff; }
+.t-soft .s-swap-core { cursor: default; }
+.t-soft .s-tile-accent { background: rgb(var(--accent)); color: rgb(var(--on-accent)); border-color: transparent; }
+.t-soft .s-tile-accent p { color: inherit; opacity: 0.8; }
+@media (max-width: 560px) {
+  .t-soft .s-hero-logo { margin: 18px 26px 6px 22px; }
+  .t-soft .s-card-price strong { font-size: 16px; }
+}
