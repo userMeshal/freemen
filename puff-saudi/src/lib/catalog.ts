@@ -17,6 +17,7 @@ function toImage(r: ImageRow): ImageDTO {
     cutoutUrl: r.cutoutUrl,
     cutoutW: r.cutoutW,
     cutoutH: r.cutoutH,
+    flat: Boolean(r.cutoutUrl),
   };
 }
 
@@ -74,7 +75,7 @@ async function loadCatalog(): Promise<{ products: ProductDTO[]; categories: Cate
         ? vs.flatMap((v) => {
             const img = v.imageId ? imageById.get(v.imageId) : undefined;
             return img && v.optionValue
-              ? [{ variantId: v.id, label: v.optionValue, accent: img.accent, bg: img.bg, url: img.url }]
+              ? [{ variantId: v.id, label: v.optionValue, accent: img.accent, bg: img.bg, url: img.url, flat: img.flat }]
               : [];
           })
         : [];
@@ -118,7 +119,7 @@ async function loadCatalog(): Promise<{ products: ProductDTO[]; categories: Cate
   };
 }
 
-const getCatalog = unstable_cache(loadCatalog, ["catalog-v1"], { tags: ["catalog"], revalidate: 600 });
+const getCatalog = unstable_cache(loadCatalog, ["catalog-v2"], { tags: ["catalog"], revalidate: 600 });
 
 function toCard(p: ProductDTO): ProductCardDTO {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars

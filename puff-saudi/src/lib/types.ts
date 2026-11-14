@@ -6,6 +6,8 @@ export type ImageDTO = {
   cutoutUrl: string | null;
   cutoutW: number | null;
   cutoutH: number | null;
+  /** خلفية الصورة لون مسطّح (صورة منتج) وليست مشهدًا مصوّرًا */
+  flat: boolean;
 };
 
 export type VariantDTO = {
@@ -36,7 +38,7 @@ export type ProductCardDTO = {
   categorySlugs: string[];
   image: ImageDTO | null;
   /** صور مصغّرة للمتغيرات (لعرض الألوان على البطاقة) */
-  swatches: { variantId: number; label: string; accent: string; bg: string; url: string }[];
+  swatches: { variantId: number; label: string; accent: string; bg: string; url: string; flat: boolean }[];
   variantCount: number;
   /** يوجد عندما يكون للمنتج متغير واحد — للإضافة السريعة للسلة */
   quickVariantId: number | null;

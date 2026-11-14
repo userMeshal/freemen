@@ -39,6 +39,8 @@ export const customers = pgTable(
     passwordHash: text("password_hash"),
     address: jsonb("address").$type<Address>(),
     notes: text("notes"),
+    /** وقت إنشاء الحساب (كلمة المرور). الطلبات السابقة له كضيف لا تُعرض في صفحة الحساب */
+    registeredAt: timestamp("registered_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("customers_phone_idx").on(t.phone), uniqueIndex("customers_email_idx").on(t.email)],

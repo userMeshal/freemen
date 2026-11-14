@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import path from "node:path";
 import catalog from "./data/catalog.json";
 
 const legacy = (catalog as { legacySlugs: Record<string, string> }).legacySlugs;
@@ -31,6 +32,7 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  outputFileTracingRoot: path.join(__dirname),
   poweredByHeader: false,
   images: {
     formats: ["image/avif", "image/webp"],
