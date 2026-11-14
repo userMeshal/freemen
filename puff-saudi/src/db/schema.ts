@@ -24,8 +24,12 @@ export const admins = pgTable("admins", {
 
 export type Address = {
   city: string;
-  district: string;
-  street: string;
+  /** العنوان الوطني المختصر: 4 أحرف + 4 أرقام (مثال RRRD2929) */
+  shortAddress?: string;
+  /** تفاصيل إضافية اختيارية يكتبها العميل (حي، شارع، معلم قريب) */
+  street?: string;
+  /** حقل قديم — يبقى للطلبات السابقة */
+  district?: string;
   notes?: string;
 };
 

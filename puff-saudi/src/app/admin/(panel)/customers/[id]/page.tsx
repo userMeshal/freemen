@@ -103,8 +103,8 @@ export default async function AdminCustomerPage({ params }: { params: Promise<{ 
                   ),
                 ],
                 ["المدينة", c.address?.city ?? "—"],
-                ["الحي", c.address?.district ?? "—"],
-                ["العنوان", c.address?.street ?? "—"],
+                ["العنوان المختصر", c.address?.shortAddress ?? "—"],
+                ["تفاصيل العنوان", [c.address?.district, c.address?.street].filter(Boolean).join("، ") || "—"],
               ]}
             />
           </Card>

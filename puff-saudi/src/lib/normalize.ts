@@ -33,6 +33,12 @@ export function normalizeSaudiPhone(input: string): string | null {
   return `966${d}`;
 }
 
+/** العنوان الوطني المختصر: 4 أحرف لاتينية + 4 أرقام (مثال RRRD2929). يرجع null إن كان غير صالح */
+export function normalizeShortAddress(input: string): string | null {
+  const v = toLatinDigits(input).toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return /^[A-Z]{4}\d{4}$/.test(v) ? v : null;
+}
+
 export function displayPhone(normalized: string): string {
   return normalized.startsWith("966") ? `0${normalized.slice(3)}` : normalized;
 }

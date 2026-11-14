@@ -109,14 +109,11 @@ async function main() {
   // ───── الشحن ─────
   const ship = await db.select({ id: schema.shippingMethods.id }).from(schema.shippingMethods).limit(1);
   if (!ship.length) {
-    await db.insert(schema.shippingMethods).values({
-      name: "التوصيل القياسي داخل المملكة",
-      description: "من 3 إلى 5 أيام عمل بعد تجهيز الطلب",
-      price: 2500,
-      freeAbove: null,
-      position: 0,
-    });
-    console.log("✓ طريقة الشحن الافتراضية (عدّل السعر من لوحة التحكم ← الشحن)");
+    await db.insert(schema.shippingMethods).values([
+      { name: "أرامكس", description: "Aramex — من 3 إلى 5 أيام عمل بعد تجهيز الطلب", price: 2500, freeAbove: null, position: 0 },
+      { name: "سمسا", description: "SMSA Express — من 3 إلى 5 أيام عمل بعد تجهيز الطلب", price: 2500, freeAbove: null, position: 1 },
+    ]);
+    console.log("✓ شركتا الشحن: أرامكس وسمسا (عدّل الأسعار من لوحة التحكم ← الشحن)");
   }
 
   // ───── المدير ─────

@@ -209,9 +209,19 @@ export default async function OrderPage({ params, searchParams }: Props) {
               <p className="leading-relaxed text-ink-mute">
                 {order.customerName} — <span className="num">{displayPhone(order.customerPhone)}</span>
                 <br />
-                {order.address.city}، {order.address.district}
-                <br />
-                {order.address.street}
+                {[order.address.city, order.address.district].filter(Boolean).join("، ")}
+                {order.address.shortAddress && (
+                  <>
+                    <br />
+                    العنوان المختصر: <span className="num font-semibold text-ink">{order.address.shortAddress}</span>
+                  </>
+                )}
+                {order.address.street && (
+                  <>
+                    <br />
+                    {order.address.street}
+                  </>
+                )}
               </p>
             </div>
             <TLink href="/shop" className="btn btn-ghost w-full">

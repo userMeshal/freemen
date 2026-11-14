@@ -15,7 +15,7 @@ import { placeOrderAction } from "./actions";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
-type Prefill = { name: string; phone: string; email: string; city: string; district: string; street: string };
+type Prefill = { name: string; phone: string; email: string; city: string; shortAddress: string; street: string };
 
 function Section({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
   return (
@@ -204,7 +204,7 @@ export function CheckoutForm({ prefill }: { prefill: Prefill }) {
                 list="cities"
                 value={form.city}
                 onChange={set("city")}
-                placeholder="اختر أو اكتب المدينة"
+                placeholder="اكتب اسم المدينة"
                 autoComplete="address-level2"
                 required
                 aria-invalid={!!errors.city}
@@ -215,12 +215,33 @@ export function CheckoutForm({ prefill }: { prefill: Prefill }) {
                 ))}
               </datalist>
             </Field>
-            <Field label="الحي" name="district" error={errors.district}>
-              <input id="f-district" className="field" value={form.district} onChange={set("district")} autoComplete="address-level3" required aria-invalid={!!errors.district} />
+            <Field
+              label="العنوان الوطني المختصر"
+              name="shortAddress"
+              error={errors.shortAddress}
+              hint="4 أحرف إنجليزية ثم 4 أرقام — تجده في تطبيق توكلنا أو أبشر أو موقع العنوان الوطني (سبل)"
+            >
+              <input
+                id="f-shortAddress"
+                className="field text-end font-display font-semibold uppercase tracking-[0.18em] placeholder:font-body placeholder:font-normal placeholder:tracking-normal"
+                dir="ltr"
+                value={form.shortAddress}
+                onChange={(e) => {
+                  setForm((f) => ({ ...f, shortAddress: e.target.value.toUpperCase().replace(/[^A-Z0-9٠-٩]/g, "").slice(0, 8) }));
+                  if (errors.shortAddress) setErrors((x) => ({ ...x, shortAddress: "" }));
+                }}
+                placeholder="RRRD2929"
+                maxLength={8}
+                autoCapitalize="characters"
+                autoComplete="off"
+                spellCheck={false}
+                required
+                aria-invalid={!!errors.shortAddress}
+              />
             </Field>
             <div className="sm:col-span-2">
-              <Field label="الشارع ووصف العنوان" name="street" error={errors.street} hint="اسم الشارع، رقم المبنى، أو العنوان الوطني المختصر">
-                <input id="f-street" className="field" value={form.street} onChange={set("street")} autoComplete="street-address" required aria-invalid={!!errors.street} />
+              <Field label="تفاصيل إضافية للعنوان (اختياري)" name="street" error={errors.street} hint="الحي، الشارع، أو معلم قريب يساعد المندوب">
+                <input id="f-street" className="field" value={form.street} onChange={set("street")} autoComplete="street-address" maxLength={200} />
               </Field>
             </div>
             <div className="sm:col-span-2">
@@ -232,11 +253,11 @@ export function CheckoutForm({ prefill }: { prefill: Prefill }) {
           </div>
         </Section>
 
-        <Section n={3} title="الشحن">
+        <Section n={3} title="شركة الشحن">
           {noShipping ? (
             <p className="rounded-2xl bg-coral/15 px-4 py-3 text-sm text-[#a3200a]">لا توجد طريقة شحن متاحة حاليًا. تواصل معنا لإتمام طلبك.</p>
           ) : (
-            <div className="space-y-2.5" role="radiogroup" aria-label="طريقة الشحن">
+            <div className="space-y-2.5" role="radiogroup" aria-label="شركة الشحن">
               {(quote?.shippingOptions ?? []).map((m) => {
                 const active = shippingMethodId === m.id;
                 return (

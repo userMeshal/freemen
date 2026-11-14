@@ -28,8 +28,8 @@ async function fillCheckout(page, { phone = "0551234567", email = "buyer@example
   await page.fill("#f-phone", phone);
   await page.fill("#f-email", email);
   await page.fill("#f-city", "الرياض");
-  await page.fill("#f-district", "العليا");
-  await page.fill("#f-street", "شارع التحلية، مبنى 12");
+  await page.fill("#f-shortAddress", "rrrd2929");
+  await page.fill("#f-street", "حي العليا، شارع التحلية");
 }
 
 (async () => {
@@ -150,6 +150,19 @@ async function fillCheckout(page, { phone = "0551234567", email = "buyer@example
   await m.waitForTimeout(1500);
   check("التحقق من الحقول: رسالة خطأ عند ترك البيانات فارغة", (await m.locator('[role="alert"]').count()) > 0);
   await fillCheckout(m);
+  // العنوان الوطني المختصر: صيغة خاطئة تُرفض
+  await m.fill("#f-shortAddress", "AB12");
+  await m.locator('input[name="payment"]').last().check();
+  await m.waitForTimeout(1200);
+  await m.locator('button[type="submit"]').last().click();
+  await m.waitForTimeout(1500);
+  check("عنوان مختصر بصيغة خاطئة يُرفض", (await m.locator("body").innerText()).includes("العنوان المختصر 4 أحرف"));
+  await m.fill("#f-shortAddress", "rrrd2929");
+  check("حقل العنوان المختصر يحوّل الأحرف إلى كبيرة", (await m.inputValue("#f-shortAddress")) === "RRRD2929");
+  // شركة الشحن: أرامكس أو سمسا
+  const carriers = await m.locator('input[name="shipping"]').count();
+  check("خياران لشركة الشحن (أرامكس / سمسا)", carriers === 2, `(${carriers})`);
+  await m.locator('label:has(input[name="shipping"])', { hasText: "سمسا" }).click();
   await m.locator('input[name="payment"]').last().check(); // الدفع عند الاستلام
   await m.waitForTimeout(1500);
   const bodyBefore = await m.locator("aside").innerText();
@@ -165,6 +178,8 @@ async function fillCheckout(page, { phone = "0551234567", email = "buyer@example
   check("إجمالي الطلب في القاعدة 18380 هللة", codOrder.total === 18380, String(codOrder.total));
   check("خصم الكوبون 3720 والشحن 2500 ورسوم COD 1000", codOrder.discount === 3720 && codOrder.shipping === 2500 && codOrder.cod_fee === 1000);
   check("الجوال مخزَّن بصيغة موحدة", codOrder.customer_phone === "966551234567");
+  check("العنوان المختصر والمدينة محفوظان", codOrder.address.shortAddress === "RRRD2929" && codOrder.address.city === "الرياض", JSON.stringify(codOrder.address));
+  check("شركة الشحن المختارة محفوظة (سمسا)", codOrder.shipping_method_name === "سمسا", codOrder.shipping_method_name);
   const strawStock = (await sql`select stock from variants where id = ${straw.id}`)[0].stock;
   check("المخزون المحدود نقص من 3 إلى 1", strawStock === 1, String(strawStock));
   check("عدّاد الكوبون زاد", (await sql`select used_count from coupons where code='TEST20'`)[0].used_count === 1);
@@ -198,7 +213,7 @@ async function fillCheckout(page, { phone = "0551234567", email = "buyer@example
   await admin.goto(`${BASE}/admin/orders/${codOrder.id}`);
   await admin.waitForTimeout(800);
   const track = admin.locator("form").filter({ has: admin.locator('input[name="carrier"]') }).first();
-  await track.locator('input[name="carrier"]').fill("SMSA");
+  check("شركة الشحن معبّأة مسبقًا في نموذج التتبع", (await track.locator('input[name="carrier"]').inputValue()) === "سمسا");
   await track.locator('input[name="number"]').fill("SMSA123456789");
   await track.locator('button[type="submit"]').first().click();
   let after;

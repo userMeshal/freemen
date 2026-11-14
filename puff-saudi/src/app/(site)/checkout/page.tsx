@@ -19,7 +19,7 @@ export default async function CheckoutPage() {
             phone: customer ? displayPhone(customer.phone) : "",
             email: customer?.email ?? "",
             city: customer?.address?.city ?? "",
-            district: customer?.address?.district ?? "",
+            shortAddress: customer?.address?.shortAddress ?? "",
             street: customer?.address?.street ?? "",
           }}
         />

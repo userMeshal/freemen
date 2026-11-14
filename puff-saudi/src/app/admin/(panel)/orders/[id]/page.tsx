@@ -245,7 +245,7 @@ export default async function AdminOrderPage({ params }: { params: Promise<{ id:
             <ActionForm action={setTrackingAction} className="space-y-3">
               <input type="hidden" name="id" value={order.id} />
               <Field label="شركة الشحن">
-                <Input name="carrier" defaultValue={order.trackingCarrier ?? ""} placeholder="مثال: سمسا، أرامكس، سبل" maxLength={80} />
+                <Input name="carrier" defaultValue={order.trackingCarrier ?? order.shippingMethodName} placeholder="مثال: سمسا، أرامكس" maxLength={80} />
               </Field>
               <Field label="رقم التتبع">
                 <Input name="number" dir="ltr" defaultValue={order.trackingNumber ?? ""} maxLength={80} />
@@ -281,8 +281,9 @@ export default async function AdminOrderPage({ params }: { params: Promise<{ id:
                 ],
                 ["البريد", order.customerEmail ? <span key="e" dir="ltr" className="break-all">{order.customerEmail}</span> : "—"],
                 ["المدينة", order.address.city],
-                ["الحي", order.address.district],
-                ["العنوان", order.address.street],
+                ...(order.address.shortAddress ? ([["العنوان المختصر", order.address.shortAddress]] as [string, string][]) : []),
+                ...(order.address.district ? ([["الحي", order.address.district]] as [string, string][]) : []),
+                ...(order.address.street ? ([["تفاصيل العنوان", order.address.street]] as [string, string][]) : []),
                 ...(order.address.notes ? ([["ملاحظات العنوان", order.address.notes]] as [string, string][]) : []),
               ]}
             />

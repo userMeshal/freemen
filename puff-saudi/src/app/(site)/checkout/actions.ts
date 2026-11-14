@@ -6,7 +6,7 @@ import { db } from "@/db";
 import { orders, paymentAttempts } from "@/db/schema";
 import { clientIp, getCustomer } from "@/lib/auth";
 import { rateLimit } from "@/lib/rate-limit";
-import { normalizeSaudiPhone, toLatinDigits } from "@/lib/normalize";
+import { normalizeSaudiPhone, normalizeShortAddress, toLatinDigits } from "@/lib/normalize";
 import { CheckoutError, createOrder } from "@/lib/orders";
 import { edfapayInitiate } from "@/lib/edfapay";
 import { edfapayConfigured, siteUrl } from "@/lib/settings";
@@ -29,8 +29,13 @@ const checkoutSchema = z.object({
   phone: z.string().trim().max(30),
   email: z.string().trim().toLowerCase().max(120).pipe(z.email()),
   city: text(2, 60),
-  district: text(2, 80),
-  street: text(3, 160),
+  shortAddress: z.string().trim().max(20),
+  street: z
+    .string()
+    .trim()
+    .max(200)
+    .transform((v) => v.replace(/[<>]/g, ""))
+    .optional(),
   note: z.string().trim().max(500).optional(),
 });
 
@@ -42,9 +47,7 @@ export type CheckoutResult =
 const FIELD_LABELS: Record<string, string> = {
   name: "اكتب الاسم الكامل",
   email: "بريد إلكتروني غير صحيح",
-  city: "اختر المدينة",
-  district: "اكتب اسم الحي",
-  street: "اكتب الشارع ووصف العنوان",
+  city: "اكتب اسم المدينة",
 };
 
 async function startPayment(order: {
@@ -55,7 +58,7 @@ async function startPayment(order: {
   customerName: string;
   customerEmail: string | null;
   customerPhone: string;
-  address: { city: string; district: string; street: string };
+  address: { city: string; shortAddress?: string; district?: string; street?: string };
 }): Promise<string> {
   const attempts = await db
     .select({ c: dsql<number>`count(*)::int` })
@@ -71,7 +74,10 @@ async function startPayment(order: {
       email: order.customerEmail ?? "",
       phone: `+${order.customerPhone}`,
     },
-    address: { city: order.address.city, address: `${order.address.district}، ${order.address.street}` },
+    address: {
+      city: order.address.city,
+      address: [order.address.shortAddress, order.address.district, order.address.street].filter(Boolean).join("، ") || order.address.city,
+    },
     successUrl: back,
     failureUrl: `${back}&s=failed`,
   });
@@ -103,8 +109,16 @@ export async function placeOrderAction(input: CheckoutInput): Promise<CheckoutRe
   }
   const data = parsed.data;
   const phone = normalizeSaudiPhone(toLatinDigits(data.phone));
-  if (!phone) {
-    return { ok: false, error: "راجع البيانات المظللة ثم أعد المحاولة.", fieldErrors: { phone: "رقم جوال سعودي غير صحيح (مثال: 05XXXXXXXX)" } };
+  const shortAddress = normalizeShortAddress(data.shortAddress);
+  if (!phone || !shortAddress) {
+    return {
+      ok: false,
+      error: "راجع البيانات المظللة ثم أعد المحاولة.",
+      fieldErrors: {
+        ...(phone ? {} : { phone: "رقم جوال سعودي غير صحيح (مثال: 05XXXXXXXX)" }),
+        ...(shortAddress ? {} : { shortAddress: "العنوان المختصر 4 أحرف إنجليزية ثم 4 أرقام (مثال: RRRD2929)" }),
+      },
+    };
   }
   if (data.paymentMethod === "edfapay" && !edfapayConfigured()) {
     return { ok: false, error: "الدفع الإلكتروني غير متاح حاليًا.", code: "payment" };
@@ -120,7 +134,7 @@ export async function placeOrderAction(input: CheckoutInput): Promise<CheckoutRe
       shippingMethodId: data.shippingMethodId,
       paymentMethod: data.paymentMethod,
       customer: { name: data.name, phone, email: data.email },
-      address: { city: data.city, district: data.district, street: data.street },
+      address: { city: data.city, shortAddress, ...(data.street ? { street: data.street } : {}) },
       note: data.note,
       loggedInCustomerId: customer?.id ?? null,
     });
