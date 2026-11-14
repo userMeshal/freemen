@@ -140,12 +140,12 @@ void drawArena(App& app, Ui& ui, const RectF& a) {
     ui.text("B or Esc: abort", RectF(a.X + a.Width - 140, a.Y + 10, 120, 22), 12.0f, theme::faint, Align::Right);
     ui.text(app.profile.name, RectF(a.X + a.Width - 240, a.Y + 34, 220, 20), 12.0f, theme::faint, Align::Right);
 
-    auto banner = [&](const std::string& big, const std::string& small) {
+    auto banner = [&](const std::string& headline, const std::string& detail) {
         RectF r(cx - 300, cy - 130, 600, 100);
         ui.fillRound(r, 14, Color(225, 20, 23, 29));
         ui.strokeRound(r, 14, theme::border);
-        ui.text(big, RectF(r.X, r.Y + 12, r.Width, 46), 30.0f, theme::accent, Align::Center, true);
-        ui.text(small, RectF(r.X + 16, r.Y + 60, r.Width - 32, 26), 13.5f, theme::dim, Align::Center);
+        ui.text(headline, RectF(r.X, r.Y + 12, r.Width, 46), 30.0f, theme::accent, Align::Center, true);
+        ui.text(detail, RectF(r.X + 16, r.Y + 60, r.Width - 32, 26), 13.5f, theme::dim, Align::Center);
     };
     if (s.stage() == Stage::Countdown) banner(fmt("%d", (int)std::ceil(3.0 - s.stageTime())), "Stage 1: flick to each target and fire with RT");
     if (s.stage() == Stage::Break1) banner("Tracking next", "Hold the crosshair on the moving target - keep strafing with the left stick");
