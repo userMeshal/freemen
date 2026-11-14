@@ -22,14 +22,14 @@ static void stickCard(App& app, Ui& ui, const RectF& c, const char* title, bool 
     drawScope(ui, sr, app.pad.connected ? raw : Vec2(), o);
 
     float ty = sr.Y + size + 8, half = (c.Width - 36) / 2;
-    ui.text(fmt("Raw  X %+.3f  Y %+.3f", raw.x, raw.y), RectF(c.X + 18, ty, half + 30, 18), 12.0f, theme::accent);
-    ui.text(fmt("|r| %.3f", raw.len()), RectF(c.X + 18 + half, ty, half, 18), 12.0f, theme::accent, Align::Right);
-    ui.text(fmt("Out  X %+.3f  Y %+.3f", proc.x, proc.y), RectF(c.X + 18, ty + 20, half + 30, 18), 12.0f, theme::blue);
-    ui.text(fmt("|r| %.3f", proc.len()), RectF(c.X + 18 + half, ty + 20, half, 18), 12.0f, theme::blue, Align::Right);
+    ui.text(fmt(tr("Raw  X %+.3f  Y %+.3f"), raw.x, raw.y), RectF(c.X + 18, ty, half + 30, 18), 12.0f, theme::accent);
+    ui.text(fmt(tr("|r| %.3f"), raw.len()), RectF(c.X + 18 + half, ty, half, 18), 12.0f, theme::accent, Align::Right);
+    ui.text(fmt(tr("Out  X %+.3f  Y %+.3f"), proc.x, proc.y), RectF(c.X + 18, ty + 20, half + 30, 18), 12.0f, theme::blue);
+    ui.text(fmt(tr("|r| %.3f"), proc.len()), RectF(c.X + 18 + half, ty + 20, half, 18), 12.0f, theme::blue, Align::Right);
     bool inDz = raw.len() <= tune.dzMin;
     ui.text(inDz ? "Inside deadzone: no output" : (raw.len() >= tune.dzMax ? "At max: full output" : "Active range"),
             RectF(c.X + 18, ty + 42, c.Width - 36, 18), 11.5f, inDz ? theme::faint : theme::dim);
-    ui.text(fmt("Deadzone %.2f - %.2f", tune.dzMin, tune.dzMax), RectF(c.X + 18, ty + 42, c.Width - 36, 18), 11.5f, theme::faint, Align::Right);
+    ui.text(fmt(tr("Deadzone %.2f - %.2f"), tune.dzMin, tune.dzMax), RectF(c.X + 18, ty + 42, c.Width - 36, 18), 11.5f, theme::faint, Align::Right);
 }
 
 static void bar(Ui& ui, const RectF& r, double v, double dz, const char* label) {
@@ -42,7 +42,7 @@ static void bar(Ui& ui, const RectF& r, double v, double dz, const char* label) 
         ui.line(r.X - 3, y, r.X + r.Width + 3, y, theme::bad, 1.2f);
     }
     ui.text(label, RectF(r.X - 20, r.Y + r.Height + 4, r.Width + 40, 16), 11.5f, theme::dim, Align::Center, true);
-    ui.text(fmt("%.0f%%", v * 100), RectF(r.X - 20, r.Y - 20, r.Width + 40, 16), 11.5f, theme::text, Align::Center);
+    ui.text(fmt(tr("%.0f%%"), v * 100), RectF(r.X - 20, r.Y - 20, r.Width + 40, 16), 11.5f, theme::text, Align::Center);
 }
 
 static void buttonsCard(App& app, Ui& ui, const RectF& c) {
@@ -50,8 +50,10 @@ static void buttonsCard(App& app, Ui& ui, const RectF& c) {
     float bh = c.Height - 250;
     bh = std::max(70.0f, std::min(bh, 150.0f));
     float bx = c.X + c.Width / 2;
-    bar(ui, RectF(bx - 70, c.Y + 62, 34, bh), app.pad.lt, app.profile.ltDz, "LT");
-    bar(ui, RectF(bx + 36, c.Y + 62, 34, bh), app.pad.rt, app.profile.rtDz, "RT");
+    // LT stays on the physical left, RT on the physical right, in either layout.
+    float ltX = ui.rtl ? bx + 36 : bx - 70, rtX = ui.rtl ? bx - 70 : bx + 36;
+    bar(ui, RectF(ltX, c.Y + 62, 34, bh), app.pad.lt, app.profile.ltDz, "LT");
+    bar(ui, RectF(rtX, c.Y + 62, 34, bh), app.pad.rt, app.profile.rtDz, "RT");
 
     struct B { const char* n; uint16_t m; };
     const B btns[] = {{"A", BtnA}, {"B", BtnB}, {"X", BtnX}, {"Y", BtnY}, {"LB", BtnLB}, {"RB", BtnRB}, {"L3", BtnLThumb}, {"R3", BtnRThumb},
@@ -69,6 +71,7 @@ static void buttonsCard(App& app, Ui& ui, const RectF& c) {
 static void curveCard(App& app, Ui& ui, const RectF& c) {
     ui.card(c, "RIGHT STICK RESPONSE CURVE");
     RectF g(c.X + 44, c.Y + 44, c.Width - 68, c.Height - 100);
+    ui.beginLtr(g); // graphs keep their usual left-to-right axes
     ui.fillRound(g, 4, theme::bg);
     for (int i = 0; i <= 4; ++i) {
         float x = g.X + g.Width * i / 4, y = g.Y + g.Height * i / 4;
@@ -93,10 +96,11 @@ static void curveCard(App& app, Ui& ui, const RectF& c) {
     float px = g.X + (float)x * g.Width, py = g.Y + g.Height - (float)y * g.Height;
     ui.line(px, g.Y, px, g.Y + g.Height, withAlpha(theme::blue, 120));
     ui.circle(px, py, 5.5f, theme::blue);
-    ui.text("stick deflection", RectF(g.X, g.Y + g.Height + 3, g.Width, 16), 11.0f, theme::faint, Align::Center);
     ui.text("0", RectF(g.X - 30, g.Y + g.Height - 9, 24, 16), 11.0f, theme::faint, Align::Right);
     ui.text("100%", RectF(g.X - 40, g.Y - 6, 36, 16), 11.0f, theme::faint, Align::Right);
-    ui.text(fmt("%s  |  input %.0f%% -> turn rate %.0f%%  (~%.0f deg/s at sens %d)", curveName(p.curve), x * 100, y * 100,
+    ui.endLtr();
+    ui.text("stick deflection", RectF(g.X, g.Y + g.Height + 3, g.Width, 16), 11.0f, theme::faint, Align::Center);
+    ui.text(fmt(tr("%s  |  input %.0f%% -> turn rate %.0f%%  (~%.0f deg/s at sens %d)"), tr(curveName(p.curve)), x * 100, y * 100,
                 y * p.sensH * kDegPerSecPerSens, p.sensH),
             RectF(c.X + 18, c.Y + c.Height - 26, c.Width - 36, 18), 11.5f, theme::dim);
 }
@@ -104,6 +108,7 @@ static void curveCard(App& app, Ui& ui, const RectF& c) {
 static void historyCard(App& app, Ui& ui, const RectF& c) {
     ui.card(c, "RIGHT STICK - LAST 5 SECONDS");
     RectF g(c.X + 18, c.Y + 44, c.Width - 36, c.Height - 84);
+    ui.beginLtr(g); // time runs left to right
     ui.fillRound(g, 4, theme::bg);
     float mid = g.Y + g.Height / 2;
     ui.line(g.X, mid, g.X + g.Width, mid, theme::border);
@@ -122,10 +127,11 @@ static void historyCard(App& app, Ui& ui, const RectF& c) {
     }
     ui.polyline(xs, theme::accent, 1.6f);
     ui.polyline(ys, theme::blue, 1.6f);
-    ui.text("X axis", RectF(c.X + 18, c.Y + c.Height - 26, 60, 18), 11.5f, theme::accent, Align::Left, true);
-    ui.text("Y axis", RectF(c.X + 70, c.Y + c.Height - 26, 60, 18), 11.5f, theme::blue, Align::Left, true);
+    ui.endLtr();
+    ui.text("X axis", RectF(c.X + 18, c.Y + c.Height - 26, 66, 18), 11.5f, theme::accent, Align::Left, true);
+    ui.text("Y axis", RectF(c.X + 88, c.Y + c.Height - 26, 66, 18), 11.5f, theme::blue, Align::Left, true);
     ui.text("Shaded band = deadzone. A flat line that sits outside the band while you are hands-off is stick drift.",
-            RectF(c.X + 130, c.Y + c.Height - 26, c.Width - 148, 18), 11.5f, theme::faint, Align::Right);
+            RectF(c.X + 162, c.Y + c.Height - 26, c.Width - 180, 18), 11.5f, theme::faint, Align::Right);
 }
 
 void pageLive(App& app, Ui& ui, const RectF& a) {
@@ -133,8 +139,10 @@ void pageLive(App& app, Ui& ui, const RectF& a) {
     float y = a.Y + 66, gap = 16;
     float h1 = (a.Height - 66 - gap) * 0.58f, h2 = a.Height - 66 - gap - h1;
     float bw = 250, sw = (a.Width - bw - gap * 2) / 2;
-    stickCard(app, ui, RectF(a.X, y, sw, h1), "LEFT STICK (MOVEMENT)", false);
-    stickCard(app, ui, RectF(a.X + sw + gap, y, sw, h1), "RIGHT STICK (AIM)", true);
+    // The left stick card stays on the physical left in a mirrored layout.
+    RectF first(a.X, y, sw, h1), second(a.X + sw + gap, y, sw, h1);
+    stickCard(app, ui, ui.rtl ? second : first, "LEFT STICK (MOVEMENT)", false);
+    stickCard(app, ui, ui.rtl ? first : second, "RIGHT STICK (AIM)", true);
     buttonsCard(app, ui, RectF(a.X + (sw + gap) * 2, y, bw, h1));
     float cw = (a.Width - gap) * 0.42f;
     curveCard(app, ui, RectF(a.X, y + h1 + gap, cw, h2));

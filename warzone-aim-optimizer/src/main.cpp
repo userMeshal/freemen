@@ -83,7 +83,7 @@ void renderFrame() {
         g.SetTextRenderingHint(Gdiplus::TextRenderingHintAntiAliasGridFit);
         g.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHalf);
         g.ScaleTransform(g_scale, g_scale);
-        g_ui.beginFrame(&g, g_app.now);
+        g_ui.beginFrame(&g, g_app.now, w / g_scale);
         drawApp(g_app, g_ui, w / g_scale, h / g_scale);
         g_ui.endFrame();
     }
@@ -94,15 +94,15 @@ void renderFrame() {
 LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
         case WM_MOUSEMOVE:
-            g_ui.mouse = PointF(GET_X_LPARAM(lp) / g_scale, GET_Y_LPARAM(lp) / g_scale);
+            g_ui.mousePhys = PointF(GET_X_LPARAM(lp) / g_scale, GET_Y_LPARAM(lp) / g_scale);
             return 0;
         case WM_LBUTTONDOWN:
-            g_ui.mouse = PointF(GET_X_LPARAM(lp) / g_scale, GET_Y_LPARAM(lp) / g_scale);
+            g_ui.mousePhys = PointF(GET_X_LPARAM(lp) / g_scale, GET_Y_LPARAM(lp) / g_scale);
             g_ui.down = true; g_ui.pressed = true;
             SetCapture(hwnd);
             return 0;
         case WM_LBUTTONUP:
-            g_ui.mouse = PointF(GET_X_LPARAM(lp) / g_scale, GET_Y_LPARAM(lp) / g_scale);
+            g_ui.mousePhys = PointF(GET_X_LPARAM(lp) / g_scale, GET_Y_LPARAM(lp) / g_scale);
             g_ui.down = false; g_ui.released = true;
             ReleaseCapture();
             return 0;
@@ -144,6 +144,40 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     return DefWindowProcW(hwnd, msg, wp, lp);
 }
 
+std::wstring windowTitle(bool demo) {
+    return widen(tr(demo ? "Warzone Aim Assist Optimizer (demo mode)" : "Warzone Aim Assist Optimizer"));
+}
+
+// --selfcheck <file>: verify on this machine's GDI+ that Arabic text is
+// shaped and ordered the way the interface relies on, then exit.
+int runSelfCheck(const std::wstring& outFile) {
+    Gdiplus::Bitmap bmp(1000, 80, PixelFormat32bppPARGB);
+    Gdiplus::Graphics g(&bmp);
+    Ui ui;
+    ui.beginFrame(&g, 0.0, 1000.0f);
+    bool ok = false;
+    std::string report = ui.textSelfCheck(ok);
+    report += ok ? "RESULT: OK\r\n" : "RESULT: FAILED\r\n";
+    HANDLE h = CreateFileW(outFile.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h != INVALID_HANDLE_VALUE) {
+        DWORD written = 0;
+        WriteFile(h, report.data(), (DWORD)report.size(), &written, nullptr);
+        CloseHandle(h);
+    }
+    return ok ? 0 : 3;
+}
+
+void writeMissing(const std::wstring& outFile) {
+    std::string all;
+    for (const auto& m : missingStrings()) all += m + "\n";
+    HANDLE h = CreateFileW(outFile.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h != INVALID_HANDLE_VALUE) {
+        DWORD written = 0;
+        WriteFile(h, all.data(), (DWORD)all.size(), &written, nullptr);
+        CloseHandle(h);
+    }
+}
+
 std::string dataDirectory(const std::wstring& overrideDir) {
     if (!overrideDir.empty()) return narrow(overrideDir);
     wchar_t path[MAX_PATH] = L"";
@@ -156,7 +190,7 @@ std::string dataDirectory(const std::wstring& overrideDir) {
 
 int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
     bool demo = false;
-    std::wstring dataOverride;
+    std::wstring dataOverride, selfCheckFile, missingFile, langArg;
     int startPage = 0;
     int argc = 0;
     LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
@@ -165,6 +199,9 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
         if (a == L"--demo") demo = true;
         else if (a == L"--data" && i + 1 < argc) dataOverride = argv[++i];
         else if (a == L"--page" && i + 1 < argc) startPage = _wtoi(argv[++i]);
+        else if (a == L"--lang" && i + 1 < argc) langArg = argv[++i];
+        else if (a == L"--selfcheck" && i + 1 < argc) selfCheckFile = argv[++i];
+        else if (a == L"--log-missing" && i + 1 < argc) missingFile = argv[++i];
     }
     if (argv) LocalFree(argv);
 
@@ -182,7 +219,17 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
         MessageBoxW(nullptr, L"GDI+ could not be initialised.", L"Warzone Aim Assist Optimizer", MB_ICONERROR);
         return 1;
     }
+    if (!selfCheckFile.empty()) {
+        int rc = runSelfCheck(selfCheckFile);
+        Gdiplus::GdiplusShutdown(gdipToken);
+        return rc;
+    }
     timeBeginPeriod(1);
+    if (!langArg.empty()) {
+        setLang(langArg == L"en" ? Lang::English : Lang::Arabic);
+        g_app.langForced = true;
+    }
+    if (!missingFile.empty()) setMissingLog(true);
 
     WNDCLASSEXW wc{};
     wc.cbSize = sizeof(wc);
@@ -195,7 +242,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
     wc.lpszClassName = L"WzAimOptimizerWnd";
     RegisterClassExW(&wc);
 
-    g_hwnd = CreateWindowExW(0, wc.lpszClassName, demo ? L"Warzone Aim Assist Optimizer (demo mode)" : L"Warzone Aim Assist Optimizer",
+    g_hwnd = CreateWindowExW(0, wc.lpszClassName, L"Warzone Aim Assist Optimizer",
                              WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, 1380, 900, nullptr, nullptr, inst, nullptr);
     if (!g_hwnd) return 1;
     g_scale = dpiForWindow(g_hwnd) / 96.0f;
@@ -207,6 +254,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
     }
 
     g_app.init(dataDirectory(dataOverride), demo);
+    SetWindowTextW(g_hwnd, windowTitle(demo).c_str()); // language is known only after init
     if (startPage > 0 && startPage < (int)Page::Count) g_app.page = (Page)startPage;
     g_app.update();
     ShowWindow(g_hwnd, show);
@@ -214,6 +262,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
 
     using clock = std::chrono::steady_clock;
     bool running = true;
+    int missingTick = -1;
     while (running) {
         auto frameStart = clock::now();
         MSG msg;
@@ -230,12 +279,15 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
         }
         g_app.update();
         renderFrame();
+        if (!missingFile.empty() && (int)(g_app.now * 0.5) != missingTick) { missingTick = (int)(g_app.now * 0.5); writeMissing(missingFile); }
+        if (g_app.titleDirty) { SetWindowTextW(g_hwnd, windowTitle(demo).c_str()); g_app.titleDirty = false; }
         // The arena renders as fast as ~240 fps; ordinary pages idle at ~100 fps.
         double target = g_app.fullscreenArena() ? 1.0 / 240.0 : 1.0 / 100.0;
         while (std::chrono::duration<double>(clock::now() - frameStart).count() < target) Sleep(1);
     }
 
     g_app.saveSettings();
+    if (!missingFile.empty()) writeMissing(missingFile);
     g_app.input.stop();
     g_back.release();
     timeEndPeriod(1);

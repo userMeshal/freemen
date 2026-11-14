@@ -22,6 +22,8 @@ add_library(wzcore STATIC
   src/core/Benchmark.cpp
   src/core/History.cpp
   src/core/KeyValue.cpp
+  src/core/Lang.cpp
+  src/core/LangArabic.cpp
   src/core/Profile.cpp
   src/core/Recommender.cpp
   src/core/ResponseCurve.cpp

@@ -43,10 +43,13 @@ void App::init(const std::string& dir, bool demoMode) {
         KeyValue kv = KeyValue::parse(text);
         active = kv.get("activeProfile");
         baselineId = kv.get("baselineId");
+        if (!langForced) setLang(kv.get("lang", "ar") == "en" ? Lang::English : Lang::Arabic);
+    } else if (!langForced) {
+        setLang(Lang::Arabic); // Arabic is the default interface language
     }
     if (active.empty() || !store.load(active, profile)) {
         profile = builtinPresets()[0];
-        profile.name = "My Current Settings";
+        profile.name = tr("My Current Settings");
     }
     prof.nameEdit = profile.name;
     if (!history.find(baselineId)) baselineId.clear();
@@ -59,6 +62,7 @@ void App::saveSettings() {
     KeyValue kv;
     kv.set("activeProfile", profile.name);
     kv.set("baselineId", baselineId);
+    kv.set("lang", lang() == Lang::English ? "en" : "ar");
     writeFile(dataDir + "/settings.txt", kv.serialize());
 }
 
@@ -127,6 +131,7 @@ void drawGoalBar(Ui& ui, const RectF& r, double ratio) {
 }
 
 void drawScope(Ui& ui, const RectF& r, Vec2 raw, const ScopeOpts& o) {
+    ui.beginLtr(r); // stick right must stay screen right in a mirrored layout
     float cx = r.X + r.Width / 2, cy = r.Y + r.Height / 2;
     float R = std::min(r.Width, r.Height) / 2 - 6;
     ui.circle(cx, cy, R, theme::bg);
@@ -169,6 +174,7 @@ void drawScope(Ui& ui, const RectF& r, Vec2 raw, const ScopeOpts& o) {
     }
     ui.circle(p.X, p.Y, 6.5f, theme::accent);
     ui.ring(p.X, p.Y, 6.5f, Color(255, 255, 255, 255), 1.2f);
+    ui.endLtr();
 }
 
 static void drawSidebar(App& app, Ui& ui, float w, float h) {
@@ -193,13 +199,20 @@ static void drawSidebar(App& app, Ui& ui, float w, float h) {
     ui.line(16, by, w - 16, by, theme::border);
     bool on = app.pad.connected;
     ui.circle(28, by + 26, 5, on ? theme::good : theme::bad);
-    ui.text(on ? fmt("Controller connected (slot %d)", app.pad.slot + 1) : "No controller detected",
+    ui.text(on ? fmt(tr("Controller connected (slot %d)"), app.pad.slot + 1) : "No controller detected",
             RectF(40, by + 14, w - 50, 24), 12.0f, on ? theme::text : theme::dim);
     double hz = app.input.reportHz();
-    ui.text(on ? (hz > 0 ? fmt("Report rate ~%.0f Hz", hz) : "Move a stick to measure rate") : "Connect an Xbox pad via USB",
+    ui.text(on ? (hz > 0 ? fmt(tr("Report rate ~%.0f Hz"), hz) : "Move a stick to measure rate") : "Connect an Xbox pad via USB",
             RectF(40, by + 36, w - 50, 18), 11.0f, theme::faint);
     if (app.demo) ui.pill("DEMO MODE - SIMULATED INPUT", 18, by + 62, withAlpha(theme::warn, 50), theme::warn);
-    else ui.text("v1.0.0", RectF(40, by + 60, w - 50, 18), 11.0f, theme::faint);
+    else ui.text("v1.1.0", RectF(40, by + 60, 60, 18), 11.0f, theme::faint);
+    // Language switch (the label is always shown in the language it switches to).
+    if (ui.button(lang() == Lang::Arabic ? "English" : "العربية", RectF(w - 104, by - 40, 88, 26), Btn::Secondary)) {
+        setLang(lang() == Lang::Arabic ? Lang::English : Lang::Arabic);
+        app.prof.haveRec = false; // recommendation text was generated in the old language
+        app.titleDirty = true;
+        app.saveSettings();
+    }
 }
 
 void drawApp(App& app, Ui& ui, float w, float h) {
@@ -245,25 +258,25 @@ void pageDashboard(App& app, Ui& ui, const RectF& a) {
     ui.text(on ? "Connected" : "Not detected", RectF(c1.X + 18, c1.Y + 40, cw - 36, 30), 21.0f, on ? theme::good : theme::bad, Align::Left, true);
     ui.text(app.input.description(), RectF(c1.X + 18, c1.Y + 74, cw - 36, 18), 12.0f, theme::dim);
     double hz = app.input.reportHz();
-    ui.text(fmt("Sampling at %.0f Hz  |  pad reports %s", app.input.pollHz(), hz > 0 ? fmt("~%.0f Hz", hz).c_str() : "n/a (move a stick)"),
+    ui.text(fmt(tr("Sampling at %.0f Hz  |  pad reports %s"), app.input.pollHz(), hz > 0 ? fmt(tr("~%.0f Hz"), hz).c_str() : tr("n/a (move a stick)")),
             RectF(c1.X + 18, c1.Y + 94, cw - 36, 18), 12.0f, theme::dim);
     if (app.cal.valid)
-        ui.text(fmt("Calibrated %s  |  right stick: %s", app.cal.when.c_str(), driftLevelName(app.cal.right.drift)),
+        ui.text(fmt(tr("Calibrated %s  |  right stick: %s"), app.cal.when.c_str(), tr(driftLevelName(app.cal.right.drift))),
                 RectF(c1.X + 18, c1.Y + 114, cw - 36, 18), 12.0f, theme::dim);
     else
         ui.text("Not calibrated yet", RectF(c1.X + 18, c1.Y + 114, cw - 36, 18), 12.0f, theme::warn);
-    if (ui.button("Live input", RectF(c1.X + 18, c1.Y + ch - 42, 110, 28), Btn::Secondary)) app.go(Page::Live);
+    if (ui.button("Live input", RectF(c1.X + 18, c1.Y + ch - 42, 140, 28), Btn::Secondary)) app.go(Page::Live);
 
     // Profile
     RectF c2(a.X + cw + gap, y, cw, ch);
     ui.card(c2, "ACTIVE PROFILE");
     const Profile& p = app.profile;
     ui.text(p.name, RectF(c2.X + 18, c2.Y + 40, cw - 36, 30), 21.0f, theme::text, Align::Left, true);
-    ui.text(fmt("Sensitivity %d / %d   ADS x%.2f   %s curve", p.sensH, p.sensV, p.adsMult, curveName(p.curve)),
+    ui.text(fmt(tr("Sensitivity %d / %d   ADS x%.2f   %s curve"), p.sensH, p.sensV, p.adsMult, tr(curveName(p.curve))),
             RectF(c2.X + 18, c2.Y + 74, cw - 36, 18), 12.0f, theme::dim);
-    ui.text(fmt("Right stick deadzone %.2f - %.2f", p.rsMin, p.rsMax), RectF(c2.X + 18, c2.Y + 94, cw - 36, 18), 12.0f, theme::dim);
-    ui.text(fmt("Left stick deadzone %.2f - %.2f", p.lsMin, p.lsMax), RectF(c2.X + 18, c2.Y + 114, cw - 36, 18), 12.0f, theme::dim);
-    if (ui.button("Edit / load", RectF(c2.X + 18, c2.Y + ch - 42, 110, 28), Btn::Secondary)) app.go(Page::Profiles);
+    ui.text(fmt(tr("Right stick deadzone %.2f - %.2f"), p.rsMin, p.rsMax), RectF(c2.X + 18, c2.Y + 94, cw - 36, 18), 12.0f, theme::dim);
+    ui.text(fmt(tr("Left stick deadzone %.2f - %.2f"), p.lsMin, p.lsMax), RectF(c2.X + 18, c2.Y + 114, cw - 36, 18), 12.0f, theme::dim);
+    if (ui.button("Edit / load", RectF(c2.X + 18, c2.Y + ch - 42, 140, 28), Btn::Secondary)) app.go(Page::Profiles);
 
     // Performance
     RectF c3(a.X + (cw + gap) * 2, y, cw, ch);
@@ -273,12 +286,12 @@ void pageDashboard(App& app, Ui& ui, const RectF& a) {
     if (base && cur) {
         double ratio = indexRatio(base->r, cur->r);
         double pct = (ratio - 1.0) * 100.0;
-        ui.text(fmt("%.2fx", ratio), RectF(c3.X + 18, c3.Y + 38, 130, 36), 28.0f, pctColor(pct), Align::Left, true);
-        ui.text(fmt("%+.1f%% vs baseline", pct), RectF(c3.X + 150, c3.Y + 44, cw - 168, 24), 13.0f, pctColor(pct), Align::Left, true);
-        ui.text(fmt("Index %.1f -> %.1f   (%s)", base->r.index, cur->r.index, cur->when.c_str()), RectF(c3.X + 18, c3.Y + 78, cw - 36, 18), 12.0f, theme::dim);
+        ui.text(fmt(tr("%.2fx"), ratio), RectF(c3.X + 18, c3.Y + 38, 130, 36), 28.0f, pctColor(pct), Align::Left, true);
+        ui.text(fmt(tr("%+.1f%% vs baseline"), pct), RectF(c3.X + 150, c3.Y + 44, cw - 168, 24), 13.0f, pctColor(pct), Align::Left, true);
+        ui.text(fmt(tr("Index %.1f -> %.1f   (%s)"), base->r.index, cur->r.index, cur->when.c_str()), RectF(c3.X + 18, c3.Y + 78, cw - 36, 18), 12.0f, theme::dim);
         drawGoalBar(ui, RectF(c3.X + 18, c3.Y + 108, cw - 36, 10), ratio);
     } else if (base) {
-        ui.text(fmt("Baseline index %.1f", base->r.index), RectF(c3.X + 18, c3.Y + 40, cw - 36, 30), 21.0f, theme::text, Align::Left, true);
+        ui.text(fmt(tr("Baseline index %.1f"), base->r.index), RectF(c3.X + 18, c3.Y + 40, cw - 36, 30), 21.0f, theme::text, Align::Left, true);
         ui.textWrap("Baseline recorded. Apply an optimized profile, practise with it, then run the benchmark again to see the change.",
                     RectF(c3.X + 18, c3.Y + 76, cw - 36, 60), 12.0f, theme::dim);
     } else {
@@ -286,7 +299,7 @@ void pageDashboard(App& app, Ui& ui, const RectF& a) {
         ui.textWrap("Run the benchmark with your current settings first. Every later run is compared against it.",
                     RectF(c3.X + 18, c3.Y + 76, cw - 36, 60), 12.0f, theme::dim);
     }
-    if (ui.button("Results", RectF(c3.X + 18, c3.Y + ch - 42, 110, 28), Btn::Secondary)) app.go(Page::Results);
+    if (ui.button("Results", RectF(c3.X + 18, c3.Y + ch - 42, 140, 28), Btn::Secondary)) app.go(Page::Results);
 
     // Workflow
     y += ch + gap;
@@ -306,7 +319,7 @@ void pageDashboard(App& app, Ui& ui, const RectF& a) {
     for (int i = 0; i < 5; ++i) {
         const Step& s = steps[i];
         ui.circle(wf.X + 32, sy + 17, 12, s.done ? theme::good : theme::cardHi);
-        ui.text(s.done ? "OK" : fmt("%d", i + 1), RectF(wf.X + 20, sy + 5, 24, 24), 11.0f, s.done ? Color(255, 10, 30, 18) : theme::dim, Align::Center, true);
+        ui.text(s.done ? "OK" : fmt(tr("%d"), i + 1), RectF(wf.X + 20, sy + 5, 24, 24), 11.0f, s.done ? Color(255, 10, 30, 18) : theme::dim, Align::Center, true);
         ui.text(s.title, RectF(wf.X + 56, sy, 300, 34), 13.5f, theme::text, Align::Left, true);
         ui.text(s.desc, RectF(wf.X + 300, sy, wf.Width - 440, 34), 12.5f, theme::dim);
         if (ui.button(s.btn, RectF(wf.X + wf.Width - 124, sy + 3, 104, 28), i == 0 || steps[i - 1].done ? Btn::Primary : Btn::Secondary)) app.go(s.page);

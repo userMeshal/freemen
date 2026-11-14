@@ -10,6 +10,10 @@ change against your own baseline.
   memory access, no input injection, no automated aiming, no overlay, nothing that
   interacts with anti-cheat. Settings are entered by you in the game's own menu.
 
+**العربية:** الواجهة عربية بالكامل افتراضياً (من اليمين لليسار) - راجع [README.ar.md](README.ar.md).
+The interface is Arabic (right-to-left) by default; switch with the **English / العربية** button at the
+bottom of the sidebar, or start with `--lang en` / `--lang ar`.
+
 ## What it can and cannot do
 
 | | |
@@ -36,7 +40,9 @@ Data (profiles, calibration, run history, exported sheets) is stored in
 Keys: `F11` borderless fullscreen, `Esc` or controller `B` aborts a benchmark run.
 
 Command-line options: `--demo` (simulated controller, to explore the UI without hardware;
-results are flagged as simulated), `--data <folder>` (use a different data folder).
+results are flagged as simulated), `--data <folder>` (use a different data folder),
+`--lang ar|en` (force the interface language), `--selfcheck <file>` (verify Arabic text
+rendering on this machine and write a report).
 
 ## Recommended workflow
 
@@ -140,19 +146,37 @@ sudo apt install g++-mingw-w64-x86-64-posix cmake ninja-build
 src/core/      portable logic: curves, stick analysis, benchmark, recommender, storage
 src/platform/  XInput source, simulated source, 1 kHz sampling thread
 src/ui/        GDI+ immediate-mode UI and the six pages
-tests/         headless tests for src/core (526 checks)
+tests/         headless tests for src/core
+tools/         gen_arabic.py - the Arabic translation table (generates src/core/LangArabic.cpp)
 ```
+
+## Languages
+
+All interface text goes through `wz::tr()`; English strings are the keys and Arabic comes from
+`tools/gen_arabic.py`. In Arabic the whole layout is mirrored, except things that have a
+physical orientation - stick scopes, graphs and the training arena stay unflipped, and the left
+stick / left trigger stay on the physical left. Recommendations and the exported settings sheet
+are produced in the selected language (the Arabic sheet keeps each option's English menu name
+next to it so it can be matched in the game).
 
 ## Verification status
 
 Verified in the build environment (Linux, MinGW-w64 cross-compiler, Wine 9):
 
 - Compiles and links with no warnings (`-Wall -Wextra`); EXE imports only Windows system DLLs.
-- 526 core checks pass both natively and as a Windows EXE under Wine.
-- GUI exercised under Wine with the simulated controller: all six pages, the full
-  calibration sequence, recommendation, profile save / load, sheet export, two complete
-  benchmark runs, history and before/after comparison; plus the no-controller state.
+- Core checks pass both natively and as a Windows EXE under Wine, including a check that every
+  Arabic translation keeps the same format arguments as its English source.
+- GUI exercised under Wine with the simulated controller in both languages: all six pages, the
+  full calibration sequence, recommendation, profile save / load, sheet export, complete
+  benchmark runs (with and without trainer aim assist), history and before/after comparison;
+  plus the no-controller state. In Arabic: mirrored layout, mouse hit-testing and physical
+  left/right placement.
 
-**Not** verified there, because no Windows machine or physical controller was available:
-behaviour with a real XInput device on real Windows 11, high-DPI scaling on a real display,
-and frame pacing on a high-refresh monitor.
+Verified on real Windows by the CI workflow (windows-latest, MSVC): the build, the core checks,
+an 8-second launch, and `--selfcheck`, which confirms on real GDI+ that Arabic letters are
+joined, paragraphs run right-to-left, and embedded numbers keep their order.
+
+**Not** verified, because no Windows desktop or physical controller was available: how the
+Arabic interface looks on a real display (Wine cannot shape Arabic, so its screenshots show
+unjoined letters), behaviour with a real XInput device, high-DPI scaling, and frame pacing on a
+high-refresh monitor.

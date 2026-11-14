@@ -97,18 +97,18 @@ void reportCard(Ui& ui, const RectF& c, const char* title, const StickReport& s,
     ui.pill(driftLevelName(s.drift), c.X + 14, sr.Y + size + 8, withAlpha(driftColor(s.drift), 45), driftColor(s.drift));
 
     float x = sr.X + size + 16, w = c.X + c.Width - 18 - x, y = c.Y + 38;
-    kvRow(ui, x, y, w, "Resting offset", fmt("X %+.3f  Y %+.3f", s.rest.offset.x, s.rest.offset.y));
-    kvRow(ui, x, y, w, "Sensor noise (RMS)", fmt("%.4f", s.rest.noise));
-    kvRow(ui, x, y, w, "Worst centre error", fmt("%.3f", s.worstCentre), driftColor(s.drift));
-    kvRow(ui, x, y, w, "Release events / worst", s.release.valid ? fmt("%d / %.3f", s.release.settles, s.release.maxSettleRadius) : "too few flicks");
-    kvRow(ui, x, y, w, "Weakest edge reach", s.range.valid ? fmt("%.1f%%", s.range.minEdge * 100) : "incomplete circle",
+    kvRow(ui, x, y, w, "Resting offset", fmt(tr("X %+.3f  Y %+.3f"), s.rest.offset.x, s.rest.offset.y));
+    kvRow(ui, x, y, w, "Sensor noise (RMS)", fmt(tr("%.4f"), s.rest.noise));
+    kvRow(ui, x, y, w, "Worst centre error", fmt(tr("%.3f"), s.worstCentre), driftColor(s.drift));
+    kvRow(ui, x, y, w, "Release events / worst", s.release.valid ? fmt(tr("%d / %.3f"), s.release.settles, s.release.maxSettleRadius) : "too few flicks");
+    kvRow(ui, x, y, w, "Weakest edge reach", s.range.valid ? fmt(tr("%.1f%%"), s.range.minEdge * 100) : "incomplete circle",
           s.range.valid && s.range.minEdge < 0.9 ? theme::warn : theme::text);
-    kvRow(ui, x, y, w, "Circularity error", s.range.valid ? fmt("%.1f%%", s.range.circularityErr) : "-");
+    kvRow(ui, x, y, w, "Circularity error", s.range.valid ? fmt(tr("%.1f%%"), s.range.circularityErr) : "-");
     y += 4;
     ui.line(x, y, x + w, y, theme::border);
     y += 6;
-    kvRow(ui, x, y, w, "Recommended Min deadzone", fmt("%.2f  (now %.2f)", s.recMin, curMin), theme::accent);
-    kvRow(ui, x, y, w, "Recommended Max deadzone", fmt("%.2f  (now %.2f)", s.recMax, curMax), theme::accent);
+    kvRow(ui, x, y, w, "Recommended Min deadzone", fmt(tr("%.2f  (now %.2f)"), s.recMin, curMin), theme::accent);
+    kvRow(ui, x, y, w, "Recommended Max deadzone", fmt(tr("%.2f  (now %.2f)"), s.recMax, curMax), theme::accent);
 }
 } // namespace
 
@@ -124,7 +124,7 @@ void pageCalibration(App& app, Ui& ui, const RectF& a) {
         bool done = c.step > i || (c.step == 5 && i == 5), cur = c.step == i;
         float cx = a.X + sw * i + 16;
         ui.circle(cx, y + 12, 11, done ? theme::good : (cur ? theme::accent : theme::cardHi));
-        ui.text(fmt("%d", i + 1), RectF(cx - 11, y + 1, 22, 22), 11.0f, (done || cur) ? Color(255, 16, 18, 22) : theme::dim, Align::Center, true);
+        ui.text(fmt(tr("%d"), i + 1), RectF(cx - 11, y + 1, 22, 22), 11.0f, (done || cur) ? Color(255, 16, 18, 22) : theme::dim, Align::Center, true);
         ui.text(kStepNames[i], RectF(cx + 18, y + 1, sw - 40, 22), 12.5f, cur ? theme::text : theme::dim, Align::Left, cur);
         if (i < 5) ui.line(cx + 18 + ui.textWidth(kStepNames[i], 12.5f, cur) + 6, y + 12, a.X + sw * (i + 1), y + 12, theme::border);
     }
@@ -134,15 +134,16 @@ void pageCalibration(App& app, Ui& ui, const RectF& a) {
     if (c.step == 5) {
         const CalibrationData& d = app.cal;
         float cw = (a.Width - gap) / 2, ch = 250;
-        reportCard(ui, RectF(a.X, y, cw, ch), "LEFT STICK", d.left, app.profile.lsMin, app.profile.lsMax);
-        reportCard(ui, RectF(a.X + cw + gap, y, cw, ch), "RIGHT STICK (AIM)", d.right, app.profile.rsMin, app.profile.rsMax);
+        RectF first(a.X, y, cw, ch), second(a.X + cw + gap, y, cw, ch); // left stick stays physically left
+        reportCard(ui, ui.rtl ? second : first, "LEFT STICK", d.left, app.profile.lsMin, app.profile.lsMax);
+        reportCard(ui, ui.rtl ? first : second, "RIGHT STICK (AIM)", d.right, app.profile.rsMin, app.profile.rsMax);
         RectF t(a.X, y + ch + gap, a.Width, std::min(200.0f, std::max(150.0f, H - ch - gap)));
         ui.card(t, "TRIGGERS, REPORT RATE & NEXT STEP");
         float ty = t.Y + 40, tw = 330;
-        kvRow(ui, t.X + 18, ty, tw, "Left trigger rest / full press", d.lt.valid ? fmt("%.0f%% / %.0f%%", d.lt.restMax * 100, d.lt.pressMax * 100) : "not pressed");
-        kvRow(ui, t.X + 18, ty, tw, "Right trigger rest / full press", d.rt.valid ? fmt("%.0f%% / %.0f%%", d.rt.restMax * 100, d.rt.pressMax * 100) : "not pressed");
-        kvRow(ui, t.X + 18, ty, tw, "Recommended L2 / R2 deadzone", fmt("%.2f / %.2f", d.lt.recDeadzone, d.rt.recDeadzone), theme::accent);
-        kvRow(ui, t.X + 18, ty, tw, "Controller report rate", d.reportHz > 0 ? fmt("~%.0f Hz", d.reportHz) : "not measured");
+        kvRow(ui, t.X + 18, ty, tw, "Left trigger rest / full press", d.lt.valid ? fmt(tr("%.0f%% / %.0f%%"), d.lt.restMax * 100, d.lt.pressMax * 100) : "not pressed");
+        kvRow(ui, t.X + 18, ty, tw, "Right trigger rest / full press", d.rt.valid ? fmt(tr("%.0f%% / %.0f%%"), d.rt.restMax * 100, d.rt.pressMax * 100) : "not pressed");
+        kvRow(ui, t.X + 18, ty, tw, "Recommended L2 / R2 deadzone", fmt(tr("%.2f / %.2f"), d.lt.recDeadzone, d.rt.recDeadzone), theme::accent);
+        kvRow(ui, t.X + 18, ty, tw, "Controller report rate", d.reportHz > 0 ? fmt(tr("~%.0f Hz"), d.reportHz) : "not measured");
         float nx = t.X + tw + 60, nw = t.Width - tw - 78;
         std::string note = d.valid
             ? "Green dots show how far the stick reached in each direction; yellow dots show where it came to rest after each release. "
@@ -161,7 +162,7 @@ void pageCalibration(App& app, Ui& ui, const RectF& a) {
             std::string name = app.prof.nameEdit;
             app.setProfile(p);
             app.prof.nameEdit = name;
-            app.notify("Deadzones applied to \"" + app.profile.name + "\" - save it on the Profiles page");
+            app.notify(fmt(tr("Deadzones applied to \"%s\" - save it on the Profiles page"), app.profile.name.c_str()));
         }
         if (ui.button("Run again", RectF(nx + 232, by, 110, 32), Btn::Secondary)) beginStep(app, 1);
         if (ui.button("Full tuning", RectF(nx + 354, by, 110, 32), Btn::Secondary)) app.go(Page::Profiles);
@@ -197,10 +198,10 @@ void pageCalibration(App& app, Ui& ui, const RectF& a) {
         ui.progress(RectF(ix, iy, iw, 8), c.step == 3 ? std::min(c.liveL.coverage, c.liveR.coverage) : el / total, theme::accent);
         iy += 22;
         std::string st;
-        if (c.step == 1) st = fmt("%.1f s remaining", std::max(0.0, total - el));
-        if (c.step == 2) st = fmt("%.0f s remaining  |  releases detected: left %d, right %d", std::max(0.0, total - el), c.settlesL, c.settlesR);
-        if (c.step == 3) st = fmt("Edge coverage: left %.0f%%, right %.0f%%", c.liveL.coverage * 100, c.liveR.coverage * 100);
-        if (c.step == 4) st = fmt("%.1f s remaining  |  LT %.0f%%  RT %.0f%%", std::max(0.0, total - el), app.pad.lt * 100, app.pad.rt * 100);
+        if (c.step == 1) st = fmt(tr("%.1f s remaining"), std::max(0.0, total - el));
+        if (c.step == 2) st = fmt(tr("%.0f s remaining  |  releases detected: left %d, right %d"), std::max(0.0, total - el), c.settlesL, c.settlesR);
+        if (c.step == 3) st = fmt(tr("Edge coverage: left %.0f%%, right %.0f%%"), c.liveL.coverage * 100, c.liveR.coverage * 100);
+        if (c.step == 4) st = fmt(tr("%.1f s remaining  |  LT %.0f%%  RT %.0f%%"), std::max(0.0, total - el), app.pad.lt * 100, app.pad.rt * 100);
         ui.text(st, RectF(ix, iy, iw, 18), 12.0f, theme::text);
         iy += 26;
         if (!c.message.empty()) { ui.textWrap(c.message, RectF(ix, iy, iw, 40), 12.0f, theme::warn); }
@@ -220,14 +221,15 @@ void pageCalibration(App& app, Ui& ui, const RectF& a) {
     float size = std::min((R.Width - 60) / 2, R.Height - 110);
     float sy = R.Y + 46 + (R.Height - 110 - size) / 2;
     float x1 = R.X + (R.Width / 2 - size) / 2 + 6, x2 = R.X + R.Width / 2 + (R.Width / 2 - size) / 2 - 6;
+    if (ui.rtl) std::swap(x1, x2); // left stick stays physically left
     ScopeOpts ol, orr;
     if (c.step == 3) { ol.bins = c.liveL.bins; orr.bins = c.liveR.bins; }
     drawScope(ui, RectF(x1, sy, size, size), app.pad.ls, ol);
     drawScope(ui, RectF(x2, sy, size, size), app.pad.rs, orr);
     ui.text("LEFT STICK", RectF(x1, sy + size + 8, size, 18), 12.0f, theme::dim, Align::Center, true);
     ui.text("RIGHT STICK", RectF(x2, sy + size + 8, size, 18), 12.0f, theme::dim, Align::Center, true);
-    ui.text(fmt("X %+.3f  Y %+.3f", app.pad.ls.x, app.pad.ls.y), RectF(x1, sy + size + 28, size, 18), 12.0f, theme::faint, Align::Center);
-    ui.text(fmt("X %+.3f  Y %+.3f", app.pad.rs.x, app.pad.rs.y), RectF(x2, sy + size + 28, size, 18), 12.0f, theme::faint, Align::Center);
+    ui.text(fmt(tr("X %+.3f  Y %+.3f"), app.pad.ls.x, app.pad.ls.y), RectF(x1, sy + size + 28, size, 18), 12.0f, theme::faint, Align::Center);
+    ui.text(fmt(tr("X %+.3f  Y %+.3f"), app.pad.rs.x, app.pad.rs.y), RectF(x2, sy + size + 28, size, 18), 12.0f, theme::faint, Align::Center);
 }
 
 } // namespace wz

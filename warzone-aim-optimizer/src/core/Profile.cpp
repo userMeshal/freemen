@@ -1,5 +1,6 @@
 #include "Profile.h"
 #include "KeyValue.h"
+#include "Lang.h"
 
 #include <cstdio>
 #include <filesystem>
@@ -82,39 +83,71 @@ Profile Profile::parse(const std::string& text) {
 std::vector<Profile> builtinPresets() {
     std::vector<Profile> v;
     {
-        Profile p; p.name = "Game Default";
-        p.notes = "Out-of-the-box style values. Use this as your baseline if you never changed settings.";
+        Profile p; p.name = tr("Game Default");
+        p.notes = tr("Out-of-the-box style values. Use this as your baseline if you never changed settings.");
         v.push_back(p);
     }
     {
-        Profile p; p.name = "Balanced Tracker";
+        Profile p; p.name = tr("Balanced Tracker");
         p.sensH = 6; p.sensV = 6; p.adsMult = 0.95; p.adsMultHigh = 0.90;
         p.curve = CurveType::Dynamic; p.adsTransition = 0;
         p.lsMin = 0.04; p.rsMin = 0.04; p.bias = 0.0;
-        p.notes = "All-round starting point: Dynamic curve, moderate sensitivity, slightly reduced ADS speed for steadier tracking.";
+        p.notes = tr("All-round starting point: Dynamic curve, moderate sensitivity, slightly reduced ADS speed for steadier tracking.");
         v.push_back(p);
     }
     {
-        Profile p; p.name = "Precision / Long Range";
+        Profile p; p.name = tr("Precision / Long Range");
         p.sensH = 5; p.sensV = 5; p.adsMult = 0.85; p.adsMultHigh = 0.80;
         p.curve = CurveType::Standard; p.adsTransition = 1;
         p.lsMin = 0.05; p.rsMin = 0.05; p.bias = -0.7;
-        p.notes = "Slower, steadier aim for AR/LMG beams at range. Standard curve gives the finest control near stick centre.";
+        p.notes = tr("Slower, steadier aim for AR/LMG beams at range. Standard curve gives the finest control near stick centre.");
         v.push_back(p);
     }
     {
-        Profile p; p.name = "Aggressive / Close Range";
+        Profile p; p.name = tr("Aggressive / Close Range");
         p.sensH = 8; p.sensV = 7; p.adsMult = 1.00; p.adsMultHigh = 0.90;
         p.curve = CurveType::Dynamic; p.adsTransition = 0;
         p.lsMin = 0.03; p.rsMin = 0.03; p.bias = 0.7;
-        p.notes = "Faster turning for SMG fights and quick target swaps. Needs a clean (drift-free) stick for the low deadzone.";
+        p.notes = tr("Faster turning for SMG fights and quick target swaps. Needs a clean (drift-free) stick for the low deadzone.");
         v.push_back(p);
     }
     for (auto& p : v) p.sanitize();
     return v;
 }
 
+static std::string exportCheatSheetArabic(const Profile& p) {
+    // Each line gives the Arabic description, the option's English menu name
+    // (so it can be matched whichever language the game runs in) and the value.
+    char b[512];
+    std::string o = "\xEF\xBB\xBF"; // UTF-8 BOM so Notepad detects the encoding
+    o += "إعدادات يد التحكم في وارزون - " + p.name + "\r\n";
+    o += "أدخل هذه القيم داخل اللعبة: الإعدادات > يد التحكم (Settings > Controller).\r\n";
+    o += "قد تتغير أسماء الخيارات بين المواسم، فطابقها بالمعنى إذا اختلف الاسم.\r\n\r\n";
+    o += "[التصويب]\r\n";
+    std::snprintf(b, sizeof(b), "  حساسية العصا الأفقية (Horizontal Stick Sensitivity): %d\r\n", p.sensH); o += b;
+    std::snprintf(b, sizeof(b), "  حساسية العصا العمودية (Vertical Stick Sensitivity): %d\r\n", p.sensV); o += b;
+    std::snprintf(b, sizeof(b), "  مضاعف حساسية ADS للتقريب المنخفض (ADS Sensitivity Multiplier - Low Zoom): %.2f\r\n", p.adsMult); o += b;
+    std::snprintf(b, sizeof(b), "  مضاعف حساسية ADS للتقريب 2x وأعلى (ADS Sensitivity Multiplier - 2x+ Zoom): %.2f\r\n", p.adsMultHigh); o += b;
+    std::snprintf(b, sizeof(b), "  توقيت انتقال حساسية ADS (ADS Sensitivity Transition Timing): %s\r\n", adsTransitionName(p.adsTransition)); o += b;
+    std::snprintf(b, sizeof(b), "  نوع منحنى استجابة التصويب (Aim Response Curve Type): %s\r\n", curveName(p.curve)); o += b;
+    o += "\r\n[المنطقة الميتة]\r\n";
+    std::snprintf(b, sizeof(b), "  العصا اليسرى - الحد الأدنى (Left Stick Min): %.2f\r\n", p.lsMin); o += b;
+    std::snprintf(b, sizeof(b), "  العصا اليسرى - الحد الأقصى (Left Stick Max): %.2f\r\n", p.lsMax); o += b;
+    std::snprintf(b, sizeof(b), "  العصا اليمنى - الحد الأدنى (Right Stick Min): %.2f\r\n", p.rsMin); o += b;
+    std::snprintf(b, sizeof(b), "  العصا اليمنى - الحد الأقصى (Right Stick Max): %.2f\r\n", p.rsMax); o += b;
+    std::snprintf(b, sizeof(b), "  المنطقة الميتة للزناد الأيسر (L2 Trigger Deadzone): %.2f\r\n", p.ltDz); o += b;
+    std::snprintf(b, sizeof(b), "  المنطقة الميتة للزناد الأيمن (R2 Trigger Deadzone): %.2f\r\n", p.rtDz); o += b;
+    o += "\r\n[مساعد التصويب]\r\n";
+    std::snprintf(b, sizeof(b), "  مساعد التصويب (Target Aim Assist): %s\r\n", p.aimAssist ? "On" : "Off"); o += b;
+    std::snprintf(b, sizeof(b), "  نوع مساعد التصويب إن وُجد (Aim Assist Type): %s\r\n", aimAssistTypeName(p.aimAssistType)); o += b;
+    if (!p.notes.empty()) o += "\r\nملاحظات: " + p.notes + "\r\n";
+    o += "\r\nهذه الورقة تعرض فقط القيم التي تُدخلها بنفسك في قائمة إعدادات اللعبة.\r\n";
+    o += "البرنامج لا يكتب أي شيء في اللعبة أو ملفاتها أو ذاكرتها.\r\n";
+    return o;
+}
+
 std::string exportCheatSheet(const Profile& p) {
+    if (lang() == Lang::Arabic) return exportCheatSheetArabic(p);
     char b[256];
     std::string o;
     o += "WARZONE CONTROLLER SETTINGS - " + p.name + "\r\n";
@@ -150,7 +183,12 @@ std::string ProfileStore::sanitizeName(const std::string& name) {
     while (!o.empty() && (o.back() == ' ' || o.back() == '.')) o.pop_back();
     while (!o.empty() && o.front() == ' ') o.erase(o.begin());
     if (o.empty()) o = "Unnamed";
-    if (o.size() > 60) o.resize(60);
+    // Cap the length without cutting a multi-byte UTF-8 character in half.
+    if (o.size() > 120) {
+        size_t cut = 120;
+        while (cut > 0 && ((unsigned char)o[cut] & 0xC0) == 0x80) --cut;
+        o.resize(cut);
+    }
     return o;
 }
 

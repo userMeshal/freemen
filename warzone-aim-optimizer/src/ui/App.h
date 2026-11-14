@@ -75,6 +75,8 @@ struct App {
     std::string toast;
     double toastUntil = 0;
     bool quit = false;
+    bool langForced = false;  // language fixed from the command line
+    bool titleDirty = false;  // window title needs refreshing after a language change
 
     void init(const std::string& dir, bool demoMode);
     void update();

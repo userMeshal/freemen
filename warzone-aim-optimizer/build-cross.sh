@@ -8,6 +8,7 @@ x86_64-w64-mingw32-strip build/win/WarzoneAimOptimizer.exe
 rm -rf build/pkg && mkdir -p build/pkg/WarzoneAimOptimizer dist
 cp build/win/WarzoneAimOptimizer.exe build/pkg/WarzoneAimOptimizer/
 cp README.md build/pkg/WarzoneAimOptimizer/README.txt
+cp README.ar.md build/pkg/WarzoneAimOptimizer/README-ar.txt
 rm -f dist/WarzoneAimOptimizer-win64.zip
 (cd build/pkg && zip -q -r -X ../../dist/WarzoneAimOptimizer-win64.zip WarzoneAimOptimizer)
 ls -l dist/WarzoneAimOptimizer-win64.zip

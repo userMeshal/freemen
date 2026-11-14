@@ -46,9 +46,56 @@ static void roundPath(GraphicsPath& p, const RectF& r, float rad) {
     p.CloseFigure();
 }
 
-void Ui::beginFrame(Graphics* gfx, double t) {
+void Ui::beginFrame(Graphics* gfx, double t, float viewWidth) {
     g = gfx;
     time = t;
+    viewW = viewWidth;
+    rtl = isRtl();
+    ltr_ = false;
+    mouse = rtl ? PointF(viewW - mousePhys.X, mousePhys.Y) : mousePhys;
+}
+
+float Ui::mapX(float x, float w) const {
+    if (!rtl) return x;
+    if (ltr_) return x + ltrShift_;
+    return viewW - x - w;
+}
+
+void Ui::beginLtr(const RectF& region) {
+    ltr_ = true;
+    ltrShift_ = rtl ? (viewW - region.X - region.Width) - region.X : 0.0f;
+}
+
+void Ui::endLtr() { ltr_ = false; }
+
+static bool hasArabic(const std::wstring& w) {
+    for (wchar_t c : w)
+        if ((c >= 0x0600 && c <= 0x06FF) || (c >= 0x0750 && c <= 0x077F) || (c >= 0xFB50 && c <= 0xFEFF)) return true;
+    return false;
+}
+
+// GDI+ on Windows treats "near" as the right edge for a right-to-left
+// paragraph. Other implementations may ignore the flag, so measure once and
+// adapt instead of assuming.
+bool Ui::rtlFlagHonored() {
+    if (rtlHonored_ < 0) {
+        StringFormat sf;
+        sf.SetFormatFlags(StringFormatFlagsDirectionRightToLeft | StringFormatFlagsNoWrap);
+        sf.SetAlignment(StringAlignmentNear);
+        RectF out;
+        const wchar_t probe[] = L"\x0628\x0627\x0628";
+        g->MeasureString(probe, 3, font(13.0f, false), RectF(0, 0, 1000, 60), &sf, &out);
+        rtlHonored_ = out.X > 400.0f ? 1 : 0;
+    }
+    return rtlHonored_ == 1;
+}
+
+StringAlignment Ui::hAlign(Align logical, bool rtlParagraph) {
+    if (logical == Align::Center) return StringAlignmentCenter;
+    bool wantRight = logical == Align::Right;
+    if (rtl && !ltr_) wantRight = !wantRight;            // logical start is the right edge
+    bool nearIsRight = rtlParagraph && rtlFlagHonored();
+    return wantRight == nearIsRight ? StringAlignmentNear : StringAlignmentFar;
 }
 
 void Ui::endFrame() {
@@ -73,71 +120,100 @@ Font* Ui::font(float size, bool bold) {
     return raw;
 }
 
-void Ui::fill(const RectF& r, Color c) { SolidBrush b(c); g->FillRectangle(&b, r); }
+void Ui::fill(const RectF& r, Color c) { SolidBrush b(c); g->FillRectangle(&b, mapRect(r)); }
 
 void Ui::fillRound(const RectF& r, float rad, Color c) {
-    GraphicsPath p; roundPath(p, r, rad);
+    GraphicsPath p; roundPath(p, mapRect(r), rad);
     SolidBrush b(c); g->FillPath(&b, &p);
 }
 
 void Ui::strokeRound(const RectF& r, float rad, Color c, float w) {
-    GraphicsPath p; roundPath(p, r, rad);
+    GraphicsPath p; roundPath(p, mapRect(r), rad);
     Pen pen(c, w); g->DrawPath(&pen, &p);
 }
 
 void Ui::line(float x1, float y1, float x2, float y2, Color c, float w) {
-    Pen pen(c, w); g->DrawLine(&pen, x1, y1, x2, y2);
+    Pen pen(c, w); g->DrawLine(&pen, mapX(x1, 0), y1, mapX(x2, 0), y2);
 }
 
 void Ui::circle(float cx, float cy, float r, Color c) {
-    SolidBrush b(c); g->FillEllipse(&b, cx - r, cy - r, r * 2, r * 2);
+    SolidBrush b(c); cx = mapX(cx, 0); g->FillEllipse(&b, cx - r, cy - r, r * 2, r * 2);
 }
 
 void Ui::ring(float cx, float cy, float r, Color c, float w) {
-    Pen pen(c, w); g->DrawEllipse(&pen, cx - r, cy - r, r * 2, r * 2);
+    Pen pen(c, w); cx = mapX(cx, 0); g->DrawEllipse(&pen, cx - r, cy - r, r * 2, r * 2);
 }
 
 void Ui::polyline(const std::vector<PointF>& pts, Color c, float w, bool closed) {
     if (pts.size() < 2) return;
     Pen pen(c, w);
     pen.SetLineJoin(LineJoinRound);
-    if (closed) g->DrawPolygon(&pen, pts.data(), (INT)pts.size());
-    else g->DrawLines(&pen, pts.data(), (INT)pts.size());
+    std::vector<PointF> mapped;
+    const std::vector<PointF>* src = &pts;
+    if (rtl) {
+        mapped.reserve(pts.size());
+        for (const PointF& p : pts) mapped.push_back(PointF(mapX(p.X, 0), p.Y));
+        src = &mapped;
+    }
+    if (closed) g->DrawPolygon(&pen, src->data(), (INT)src->size());
+    else g->DrawLines(&pen, src->data(), (INT)src->size());
+}
+
+float Ui::cachedWidth(const std::wstring& w, float size, bool bold) {
+    std::wstring key = w;
+    key += (wchar_t)(0xE000 + (int)std::lround(size * 4.0f) * 2 + (bold ? 1 : 0));
+    auto it = widthCache_.find(key);
+    if (it != widthCache_.end()) return it->second;
+    if (widthCache_.size() > 6000) widthCache_.clear(); // live numbers churn the cache
+    RectF out;
+    g->MeasureString(w.c_str(), (INT)w.size(), font(size, bold), PointF(0, 0), &out);
+    widthCache_[key] = out.Width;
+    return out.Width;
 }
 
 void Ui::text(const std::string& s, const RectF& r, float size, Color c, Align a, bool bold) {
     if (s.empty()) return;
-    std::wstring w = widen(s);
+    std::wstring w = widen(trs(s));
+    bool para = hasArabic(w);
+    if (r.Width > 8.0f) {
+        // Shrink (down to 72%) before resorting to an ellipsis.
+        float tw = cachedWidth(w, size, bold);
+        if (tw > r.Width) size = std::max(size * 0.72f, std::floor(size * (r.Width - 3.0f) / tw * 4.0f) / 4.0f);
+    }
     StringFormat sf;
-    sf.SetAlignment(a == Align::Left ? StringAlignmentNear : (a == Align::Center ? StringAlignmentCenter : StringAlignmentFar));
+    sf.SetAlignment(hAlign(a, para));
     sf.SetLineAlignment(StringAlignmentCenter);
-    sf.SetFormatFlags(StringFormatFlagsNoWrap);
+    sf.SetFormatFlags(StringFormatFlagsNoWrap | (para ? StringFormatFlagsDirectionRightToLeft : 0));
     sf.SetTrimming(StringTrimmingEllipsisCharacter);
     SolidBrush b(c);
-    g->DrawString(w.c_str(), (INT)w.size(), font(size, bold), r, &sf, &b);
+    g->DrawString(w.c_str(), (INT)w.size(), font(size, bold), mapRect(r), &sf, &b);
 }
 
 float Ui::textWrap(const std::string& s, const RectF& r, float size, Color c, bool bold) {
     if (s.empty()) return 0.0f;
-    std::wstring w = widen(s);
+    std::wstring w = widen(trs(s));
+    bool para = hasArabic(w);
     StringFormat sf;
+    sf.SetAlignment(hAlign(Align::Left, para));
+    if (para) sf.SetFormatFlags(StringFormatFlagsDirectionRightToLeft);
     SolidBrush b(c);
-    RectF box(r.X, r.Y, r.Width, 4000.0f), out;
+    RectF box(mapX(r.X, r.Width), r.Y, r.Width, 4000.0f), out;
     g->MeasureString(w.c_str(), (INT)w.size(), font(size, bold), box, &sf, &out);
     g->DrawString(w.c_str(), (INT)w.size(), font(size, bold), box, &sf, &b);
     return out.Height;
 }
 
 float Ui::textWidth(const std::string& s, float size, bool bold) {
-    std::wstring w = widen(s);
+    std::wstring w = widen(trs(s));
     RectF out;
     g->MeasureString(w.c_str(), (INT)w.size(), font(size, bold), PointF(0, 0), &out);
     return out.Width;
 }
 
 float Ui::wrapHeight(const std::string& s, float width, float size, bool bold) {
-    std::wstring w = widen(s);
+    std::wstring w = widen(trs(s));
     StringFormat sf;
+    if (hasArabic(w)) sf.SetFormatFlags(StringFormatFlagsDirectionRightToLeft);
     RectF out;
     g->MeasureString(w.c_str(), (INT)w.size(), font(size, bold), RectF(0, 0, width, 4000.0f), &sf, &out);
     return out.Height;
@@ -265,6 +341,57 @@ bool Ui::row(const RectF& r, bool selected) {
     if (selected) fillRound(r, 6.0f, withAlpha(theme::accent, 46));
     else if (hov) fillRound(r, 6.0f, theme::cardHi);
     return clicked;
+}
+
+std::string Ui::textSelfCheck(bool& allOk) {
+    // Verifies, on the GDI+ this process is actually running against, the
+    // three text behaviours the Arabic UI depends on.
+    std::string rep;
+    allOk = true;
+    Font* f = font(20.0f, false);
+    auto line = [&](const char* name, bool ok, const std::string& detail) {
+        rep += std::string(ok ? "PASS  " : "FAIL  ") + name + "  (" + detail + ")\r\n";
+        if (!ok) allOk = false;
+    };
+    auto width = [&](const wchar_t* t) {
+        RectF out;
+        StringFormat sf(StringFormat::GenericTypographic());
+        g->MeasureString(t, -1, f, PointF(0, 0), &sf, &out);
+        return out.Width;
+    };
+    auto rangeBox = [&](const wchar_t* t, int first, int len, bool rtlPara) {
+        StringFormat sf;
+        sf.SetFormatFlags(StringFormatFlagsNoWrap | (rtlPara ? StringFormatFlagsDirectionRightToLeft : 0));
+        CharacterRange cr(first, len);
+        sf.SetMeasurableCharacterRanges(1, &cr);
+        Region rg;
+        RectF box;
+        if (g->MeasureCharacterRanges(t, -1, f, RectF(0, 0, 1000, 60), &sf, 1, &rg) == Ok) rg.GetBounds(&box, g);
+        return box;
+    };
+
+    // 1. A right-to-left paragraph starts at the right edge.
+    rtlHonored_ = -1;
+    line("rtl paragraph starts at the right edge", rtlFlagHonored(), "near alignment of an RTL paragraph");
+
+    // 2. Arabic letters are joined (shaped): four connected "beh" are much
+    //    narrower than four isolated ones.
+    float joined = width(L"\x0628\x0628\x0628\x0628"), isolated = 4.0f * width(L"\x0628");
+    line("arabic letters are joined", joined > 1.0f && joined < isolated * 0.85f, fmt("joined %.1f px vs isolated %.1f px", joined, isolated));
+
+    // 3. Bidi: in an RTL paragraph the first word sits to the right of the second.
+    RectF a = rangeBox(L"\x0633\x0644\x0627\x0645 \x0639\x0644\x0649", 0, 4, true), b = rangeBox(L"\x0633\x0644\x0627\x0645 \x0639\x0644\x0649", 5, 3, true);
+    line("first word is rightmost", a.Width > 0 && b.Width > 0 && a.X > b.X, fmt("word1 x=%.0f word2 x=%.0f", a.X, b.X));
+
+    // 4. A signed number wrapped in LRE/PDF keeps its sign on the left.
+    const wchar_t signedText[] = L"\x0642\x064A\x0645\x0629 \x202A-5\x202C";
+    RectF minus = rangeBox(signedText, 6, 1, true), five = rangeBox(signedText, 7, 1, true);
+    line("embedded signed number stays left-to-right", minus.Width > 0 && five.Width > 0 && minus.X < five.X, fmt("minus x=%.0f digit x=%.0f", minus.X, five.X));
+
+    // 5. The Arabic font has real glyphs (not all the same fallback box).
+    float w1 = width(L"\x0627"), w2 = width(L"\x0634");
+    line("font has distinct arabic glyphs", w1 > 0.5f && w2 > 0.5f && std::fabs(w1 - w2) > 0.5f, fmt("alef %.1f px, sheen %.1f px", w1, w2));
+    return rep;
 }
 
 } // namespace wz

@@ -19,7 +19,7 @@ void startRun(App& app) {
 void finishRun(App& app) {
     BenchUi& b = app.bench;
     RunRecord rec;
-    rec.id = timestampNow(true) + fmt("-%03d", (int)(std::fmod(app.now, 1.0) * 1000));
+    rec.id = timestampNow(true) + fmt(tr("-%03d"), (int)(std::fmod(app.now, 1.0) * 1000));
     rec.when = timestampNow(false);
     rec.profile = app.profile.name;
     rec.label = kLabels[b.labelIdx];
@@ -67,6 +67,7 @@ void drawArena(App& app, Ui& ui, const RectF& a) {
     double zoom = lerpd(1.0, kAdsZoom, s.zoomBlend());
     double ppd = a.Width / (app.profile.trainerFov / zoom);
 
+    ui.beginLtr(a); // the play field is never mirrored: stick right = view right
     ui.fill(a, Color(255, 11, 13, 17));
     // Reference grid scrolls with the view so turning speed is visible.
     const double gridDeg = 10.0;
@@ -122,6 +123,8 @@ void drawArena(App& app, Ui& ui, const RectF& a) {
         ui.line(cx - d1, cy + d1, cx - d0, cy + d0, hc, 2.4f); ui.line(cx + d0, cy + d0, cx + d1, cy + d1, hc, 2.4f);
     }
 
+    ui.endLtr();
+
     // HUD
     ui.fill(RectF(a.X, a.Y, a.Width, 64), Color(215, 14, 16, 20));
     ui.text(stageName(s.stage()), RectF(a.X + 24, a.Y + 10, 420, 26), 17.0f, theme::text, Align::Left, true);
@@ -134,14 +137,14 @@ void drawArena(App& app, Ui& ui, const RectF& a) {
     }
     ui.text(hint, RectF(a.X + 24, a.Y + 36, a.Width - 420, 20), 12.5f, theme::dim);
     ui.progress(RectF(a.X + a.Width - 384, a.Y + 18, 200, 8), s.overallProgress(), theme::accent);
-    ui.text(fmt("%.0f%%", s.overallProgress() * 100), RectF(a.X + a.Width - 176, a.Y + 11, 44, 22), 12.5f, theme::dim);
+    ui.text(fmt(tr("%.0f%%"), s.overallProgress() * 100), RectF(a.X + a.Width - 176, a.Y + 11, 44, 22), 12.5f, theme::dim);
     if (s.stage() == Stage::Tracking)
-        ui.text(fmt("On target %.0f%%", s.liveTrackFraction() * 100), RectF(a.X + a.Width - 384, a.Y + 34, 200, 20), 12.5f, theme::text);
+        ui.text(fmt(tr("On target %.0f%%"), s.liveTrackFraction() * 100), RectF(a.X + a.Width - 384, a.Y + 34, 200, 20), 12.5f, theme::text);
     else
-        ui.text(fmt("Hits %d / %d shots", s.hits(), s.shots()), RectF(a.X + a.Width - 384, a.Y + 34, 200, 20), 12.5f, theme::text);
+        ui.text(fmt(tr("Hits %d / %d shots"), s.hits(), s.shots()), RectF(a.X + a.Width - 384, a.Y + 34, 200, 20), 12.5f, theme::text);
     ui.text("B or Esc: abort", RectF(a.X + a.Width - 140, a.Y + 10, 120, 22), 12.0f, theme::faint, Align::Right);
     std::string pname = app.profile.name;
-    if (s.assist() > 0.0) pname = fmt("Trainer aim assist %.1fx  |  ", s.assist()) + pname;
+    if (s.assist() > 0.0) pname = fmt(tr("Trainer aim assist %.1fx  |  "), s.assist()) + pname;
     ui.text(pname, RectF(a.X + a.Width - 420, a.Y + 34, 400, 20), 12.0f, s.assist() > 0 ? theme::blue : theme::faint, Align::Right);
 
     auto banner = [&](const std::string& headline, const std::string& detail) {
@@ -151,7 +154,7 @@ void drawArena(App& app, Ui& ui, const RectF& a) {
         ui.text(headline, RectF(r.X, r.Y + 12, r.Width, 46), 30.0f, theme::accent, Align::Center, true);
         ui.text(detail, RectF(r.X + 16, r.Y + 60, r.Width - 32, 26), 13.5f, theme::dim, Align::Center);
     };
-    if (s.stage() == Stage::Countdown) banner(fmt("%d", (int)std::ceil(3.0 - s.stageTime())), "Stage 1: flick to each target and fire with RT");
+    if (s.stage() == Stage::Countdown) banner(fmt(tr("%d"), (int)std::ceil(3.0 - s.stageTime())), "Stage 1: flick to each target and fire with RT");
     if (s.stage() == Stage::Break1) banner("Tracking next", "Hold the crosshair on the moving target - keep strafing with the left stick");
     if (s.stage() == Stage::Break2) banner("ADS precision next", "Hold LT to aim down sights, then fire at the small targets with RT");
     if (!app.pad.connected) {
@@ -213,21 +216,21 @@ void pageBenchmark(App& app, Ui& ui, const RectF& a) {
     yy += 44;
     ui.text("Trainer field of view", RectF(x, yy, 150, 26), 12.0f, theme::dim);
     ui.slider("fov", RectF(x + 150, yy, w - 150 - 50, 26), app.profile.trainerFov, 80, 120, 1);
-    ui.text(fmt("%.0f", app.profile.trainerFov), RectF(x + w - 46, yy, 46, 26), 13.0f, theme::text, Align::Right, true);
+    ui.text(fmt(tr("%.0f"), app.profile.trainerFov), RectF(x + w - 46, yy, 46, 26), 13.0f, theme::text, Align::Right, true);
     yy += 36;
     ui.text("Trainer aim assist", RectF(x, yy, 150, 26), 12.0f, theme::dim);
     ui.slider("assist", RectF(x + 150, yy, w - 150 - 50, 26), b.assist, 0.0, 3.0, 0.5);
-    ui.text(b.assist <= 0.0 ? "Off" : fmt("%.1fx", b.assist), RectF(x + w - 46, yy, 46, 26), 13.0f, b.assist > 0 ? theme::blue : theme::text, Align::Right, true);
+    ui.text(b.assist <= 0.0 ? "Off" : fmt(tr("%.1fx"), b.assist), RectF(x + w - 46, yy, 46, 26), 13.0f, b.assist > 0 ? theme::blue : theme::text, Align::Right, true);
     yy += 24;
     ui.textWrap(b.assist <= 0.0
         ? "Off: measures your raw stick control, the way Warzone's own aim assist is built on. Leave it off for baseline vs optimized comparisons."
-        : fmt("%.1fx: a trainer-only approximation so you can feel and measure aim assist. It changes nothing in Warzone. Compare only against runs at the same strength.", b.assist),
+        : fmt(tr("%.1fx: a trainer-only approximation so you can feel and measure aim assist. It changes nothing in Warzone. Compare only against runs at the same strength."), b.assist),
         RectF(x, yy, w, 44), 11.5f, b.assist > 0 ? theme::blue : theme::faint);
     yy += 50;
     ui.fillRound(RectF(x, yy, w, 74), 8, theme::bg);
     const Profile& p = app.profile;
-    ui.text("Profile in use: " + p.name, RectF(x + 12, yy + 8, w - 24, 20), 12.5f, theme::text, Align::Left, true);
-    ui.text(fmt("Sens %d / %d   ADS x%.2f   %s   RS deadzone %.2f-%.2f", p.sensH, p.sensV, p.adsMult, curveName(p.curve), p.rsMin, p.rsMax),
+    ui.text(tr("Profile in use: ") + p.name, RectF(x + 12, yy + 8, w - 24, 20), 12.5f, theme::text, Align::Left, true);
+    ui.text(fmt(tr("Sens %d / %d   ADS x%.2f   %s   RS deadzone %.2f-%.2f"), p.sensH, p.sensV, p.adsMult, tr(curveName(p.curve)), p.rsMin, p.rsMax),
             RectF(x + 12, yy + 30, w - 24, 18), 12.0f, theme::dim);
     ui.text("Applied to your stick exactly as shown on the Live Input page.", RectF(x + 12, yy + 50, w - 24, 18), 11.5f, theme::faint);
     yy += 88;
@@ -256,25 +259,25 @@ void pageBenchmark(App& app, Ui& ui, const RectF& a) {
     }
     const BenchResult& r = b.last.r;
     float tw = (rw - 12) / 2, th = 82;
-    statTile(ui, RectF(rx, ry, tw, th), "AIM PERFORMANCE INDEX", fmt("%.1f", r.index), fmt("composite score %.1f / 100", r.composite), theme::accent);
+    statTile(ui, RectF(rx, ry, tw, th), "AIM PERFORMANCE INDEX", fmt(tr("%.1f"), r.index), fmt(tr("composite score %.1f / 100"), r.composite), theme::accent);
     const RunRecord* base = app.baseline();
     if (base && base->id != b.last.id) {
         double ratio = indexRatio(base->r, r);
-        statTile(ui, RectF(rx + tw + 12, ry, tw, th), "VS BASELINE", fmt("%.2fx", ratio), fmt("%+.1f%% (2x is the goal)", (ratio - 1) * 100), pctColor((ratio - 1) * 100));
+        statTile(ui, RectF(rx + tw + 12, ry, tw, th), "VS BASELINE", fmt(tr("%.2fx"), ratio), fmt(tr("%+.1f%% (2x is the goal)"), (ratio - 1) * 100), pctColor((ratio - 1) * 100));
     } else {
         statTile(ui, RectF(rx + tw + 12, ry, tw, th), "RECORDED AS", b.last.label, b.last.when);
     }
     ry += th + 12;
-    statTile(ui, RectF(rx, ry, tw, th), "ACCURACY", fmt("%.0f%%", r.accuracy * 100), fmt("%d hits, %d shots, %d timed out", r.hits, r.shots, r.timeouts));
-    statTile(ui, RectF(rx + tw + 12, ry, tw, th), "TRACKING", fmt("%.0f%%", r.trackOnTarget * 100), fmt("on target, mean error %.2f deg", r.trackMeanErrDeg));
+    statTile(ui, RectF(rx, ry, tw, th), "ACCURACY", fmt(tr("%.0f%%"), r.accuracy * 100), fmt(tr("%d hits, %d shots, %d timed out"), r.hits, r.shots, r.timeouts));
+    statTile(ui, RectF(rx + tw + 12, ry, tw, th), "TRACKING", fmt(tr("%.0f%%"), r.trackOnTarget * 100), fmt(tr("on target, mean error %.2f deg"), r.trackMeanErrDeg));
     ry += th + 12;
-    statTile(ui, RectF(rx, ry, tw, th), "REACTION", fmt("%.0f ms", r.medianReactionMs), fmt("median, time to hit %.0f ms", r.medianAcquireMs));
-    statTile(ui, RectF(rx + tw + 12, ry, tw, th), "CONSISTENCY", fmt("%.0f / 100", r.scoreConsistency), fmt("time-to-hit variation %.0f%%", r.acquireCv * 100));
+    statTile(ui, RectF(rx, ry, tw, th), "REACTION", fmt(tr("%.0f ms"), r.medianReactionMs), fmt(tr("median, time to hit %.0f ms"), r.medianAcquireMs));
+    statTile(ui, RectF(rx + tw + 12, ry, tw, th), "CONSISTENCY", fmt(tr("%.0f / 100"), r.scoreConsistency), fmt(tr("time-to-hit variation %.0f%%"), r.acquireCv * 100));
     ry += th + 12;
-    statTile(ui, RectF(rx, ry, tw, th), "ADS PRECISION", fmt("%.0f%%", r.adsAccuracy * 100), fmt("targets hit, median %.0f ms", r.adsMedianAcquireMs));
-    statTile(ui, RectF(rx + tw + 12, ry, tw, th), "CONTROL", fmt("%.0f%% overshoot", r.overshootRate * 100), fmt("stick pinned %.0f%%, strafing %.0f%%", r.saturation * 100, r.strafeUptime * 100));
+    statTile(ui, RectF(rx, ry, tw, th), "ADS PRECISION", fmt(tr("%.0f%%"), r.adsAccuracy * 100), fmt(tr("targets hit, median %.0f ms"), r.adsMedianAcquireMs));
+    statTile(ui, RectF(rx + tw + 12, ry, tw, th), "CONTROL", fmt(tr("%.0f%% overshoot"), r.overshootRate * 100), fmt(tr("stick pinned %.0f%%, strafing %.0f%%"), r.saturation * 100, r.strafeUptime * 100));
     ry += th + 14;
-    if (b.last.aimAssist > 0.0) { ui.pill(fmt("TRAINER AIM ASSIST %.1fx (ARENA ONLY)", b.last.aimAssist), rx, ry, withAlpha(theme::blue, 50), theme::blue); ry += 28; }
+    if (b.last.aimAssist > 0.0) { ui.pill(fmt(tr("TRAINER AIM ASSIST %.1fx (ARENA ONLY)"), b.last.aimAssist), rx, ry, withAlpha(theme::blue, 50), theme::blue); ry += 28; }
     if (b.last.simulated) ui.pill("SIMULATED INPUT - NOT A REAL RESULT", rx, ry, withAlpha(theme::warn, 50), theme::warn);
     float by = R.Y + R.Height - 54;
     if (ui.button("Open Results", RectF(rx, by, 150, 38), Btn::Secondary)) app.go(Page::Results);

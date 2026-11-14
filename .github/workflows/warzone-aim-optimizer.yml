@@ -24,6 +24,13 @@ jobs:
         run: cmake --build build --config Release
       - name: Core tests
         run: build\Release\wz_core_tests.exe
+      - name: Arabic text rendering self-check (shaping, right-to-left order)
+        shell: pwsh
+        run: |
+          $out = Join-Path $env:RUNNER_TEMP "selfcheck.txt"
+          $p = Start-Process -FilePath "build\Release\WarzoneAimOptimizer.exe" -ArgumentList "--selfcheck",$out -PassThru -Wait
+          Get-Content $out
+          if ($p.ExitCode -ne 0) { Write-Error "Arabic text self-check failed (exit $($p.ExitCode))"; exit 1 }
       - name: Launch smoke test (demo mode, 8 seconds)
         shell: pwsh
         run: |

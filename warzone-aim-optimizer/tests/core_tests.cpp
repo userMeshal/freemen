@@ -3,11 +3,13 @@
 #include "../src/core/Benchmark.h"
 #include "../src/core/History.h"
 #include "../src/core/KeyValue.h"
+#include "../src/core/Lang.h"
 #include "../src/core/Profile.h"
 #include "../src/core/Recommender.h"
 #include "../src/core/StickAnalysis.h"
 
 #include <cstdio>
+#include <cstring>
 #include <filesystem>
 #include <functional>
 
@@ -381,6 +383,58 @@ int main() {
         CHECK(rec.profile.curve == CurveType::Standard); CHECK(rec.profile.sensH == 4);
         NEAR(rec.profile.rsMin, cur.rsMin, 1e-9); // no calibration -> deadzone untouched
         CHECK(rec.profile.aimAssist);
+    });
+
+    run("arabic translation table is complete and format-safe", [] {
+        size_t n = 0;
+        const LangPair* t = arabicTable(n);
+        CHECK(n > 300);
+        // Every translation must keep the same printf conversions in the same
+        // order as its English key, or formatting would read the wrong arguments.
+        auto specs = [](const char* s) {
+            std::string out;
+            for (const char* p = s; *p; ++p) {
+                if (*p != '%') continue;
+                const char* q = p + 1;
+                while (*q && std::strchr("-+ 0#.123456789", *q)) ++q;
+                if (!*q) break;
+                out += '%'; out += *q; out += ' ';
+                p = q;
+            }
+            return out;
+        };
+        int bad = 0;
+        for (size_t i = 0; i < n; ++i) {
+            if (specs(t[i].en) != specs(t[i].ar)) { ++bad; std::printf("    format mismatch: %s\n", t[i].en); }
+            if (!t[i].ar[0]) { ++bad; std::printf("    empty translation: %s\n", t[i].en); }
+        }
+        CHECK(bad == 0);
+
+        CHECK(lang() == Lang::English);
+        CHECK(std::string(tr("Dashboard")) == "Dashboard");
+        setLang(Lang::Arabic);
+        CHECK(isRtl());
+        CHECK(std::string(tr("Dashboard")) != "Dashboard");
+        CHECK(std::string(tr("no such string")) == "no such string"); // falls back to the key
+        CHECK(trs("Baseline") == tr("Baseline"));
+        // Core output is produced in Arabic too.
+        Profile p; p.sensH = 9; p.rsMin = 0.07;
+        std::string sheet = exportCheatSheet(p);
+        CHECK(sheet.find("Horizontal Stick Sensitivity): 9") != std::string::npos);
+        CHECK(sheet.find("(Right Stick Min): 0.07") != std::string::npos);
+        CHECK(sheet.compare(0, 3, "\xEF\xBB\xBF") == 0);
+        Recommendation rec = recommend(p, nullptr, nullptr);
+        CHECK(!rec.reasons.empty());
+        for (const auto& r : rec.reasons) CHECK(r.find("Sensitivity") == std::string::npos); // no English left
+        CHECK(builtinPresets()[1].name != "Balanced Tracker");
+        // Long Arabic names are truncated on a character boundary (valid UTF-8).
+        std::string longName;
+        for (int i = 0; i < 100; ++i) longName += "\xD8\xA8";
+        std::string cut = ProfileStore::sanitizeName(longName);
+        CHECK(cut.size() <= 120 && cut.size() % 2 == 0);
+        setLang(Lang::English);
+        CHECK(!isRtl());
+        CHECK(exportCheatSheet(p).find("Horizontal Stick Sensitivity ......... 9") != std::string::npos);
     });
 
     std::printf("\n%d checks, %d failed\n", g_checks, g_fail);
