@@ -431,13 +431,13 @@
   transform: none;
 }
 /* كشف الصور بقناع */
-.rv-clip {
+.rv-clip > .rv-clip-inner {
   clip-path: inset(100% 0 0 0 round 1.75rem);
   transition: clip-path 1.2s var(--ease-expo);
   transition-delay: calc(var(--i, 0) * 80ms + var(--d, 0ms));
 }
-.rv-clip.is-in {
-  clip-path: inset(0 0 0 0 round 1.75rem);
+.rv-clip.is-in > .rv-clip-inner {
+  clip-path: inset(0 0 0 0);
 }
 
 /* ─────────────────────────────── شاشة التحميل الأولى ─────────────────────────────── */
@@ -528,7 +528,7 @@ html.no-preload #preloader {
     transform: none !important;
     opacity: 1 !important;
   }
-  .rv-clip {
+  .rv-clip > .rv-clip-inner {
     clip-path: none !important;
   }
   #preloader {

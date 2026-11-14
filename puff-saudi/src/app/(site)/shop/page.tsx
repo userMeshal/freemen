@@ -28,7 +28,7 @@ export default async function ShopPage({ searchParams }: { searchParams: Promise
         title={active ? active.name : "المتجر"}
         description={active ? active.blurb : "كل الألوان، كل السعات، كل المزاجات — في مكان واحد."}
         crumbs={[{ label: "المتجر" }]}
-        count={cards.length}
+        count={active ? cards.filter((c) => active.members.includes(c.family)).length : cards.length}
       />
       <div className="wrap pb-24 md:pb-32">
         {/* key يعيد تهيئة الفلاتر عند التنقل بين روابط العائلات في القائمة */}

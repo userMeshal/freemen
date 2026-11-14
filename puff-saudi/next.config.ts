@@ -34,6 +34,8 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   outputFileTracingRoot: path.join(__dirname),
   poweredByHeader: false,
+  // فحص الأنواع إلزامي في البناء؛ ESLint يُشغَّل يدويًا عبر npm run lint
+  eslint: { ignoreDuringBuilds: true },
   images: {
     formats: ["image/avif", "image/webp"],
     minimumCacheTTL: 60 * 60 * 24 * 30,

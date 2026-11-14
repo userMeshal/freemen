@@ -9,7 +9,7 @@ import { useUI } from "@/store/ui";
 
 export type NavLink = { href: string; label: string; latin?: string };
 
-export function Header({ links }: { links: NavLink[] }) {
+export function Header({ links, announcement = "" }: { links: NavLink[]; announcement?: string }) {
   const pathname = usePathname();
   const items = useCart((s) => s.items);
   const hydrated = useCart((s) => s.hydrated);
@@ -57,12 +57,28 @@ export function Header({ links }: { links: NavLink[] }) {
         hidden ? "-translate-y-full" : "translate-y-0"
       }`}
     >
+      {announcement && (
+        <div className="flex h-[34px] items-center overflow-hidden bg-ink text-xs font-medium text-paper">
+          <div className="marquee-track" style={{ ["--marquee-duration" as string]: "38s" }}>
+            {[0, 1].map((k) => (
+              <div key={k} className="flex shrink-0 items-center" aria-hidden={k === 1 || undefined}>
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <span key={i} className="flex items-center whitespace-nowrap">
+                    {announcement}
+                    <span aria-hidden className="mx-6 inline-block h-1.5 w-1.5 rotate-45 bg-lime" />
+                  </span>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <div
         className={`transition-[background-color,backdrop-filter,border-color] duration-500 ${
           solid ? "border-b border-line bg-paper/80 backdrop-blur-xl" : "border-b border-transparent bg-transparent"
         }`}
       >
-        <div className="wrap flex h-[var(--header-h)] items-center justify-between gap-4">
+        <div className="wrap flex h-[68px] items-center justify-between gap-4">
           {/* البداية: القائمة (جوال) + الشعار */}
           <div className="flex items-center gap-2 md:gap-10">
             <button

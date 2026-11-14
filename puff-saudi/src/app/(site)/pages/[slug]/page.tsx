@@ -9,6 +9,11 @@ export const revalidate = 3600;
 
 type Props = { params: Promise<{ slug: string }> };
 
+export const dynamicParams = true;
+export async function generateStaticParams() {
+  return [];
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const page = await getPage((await params).slug);
   if (!page) return { title: "الصفحة غير موجودة" };

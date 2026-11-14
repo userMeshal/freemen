@@ -201,8 +201,12 @@ async function fillCheckout(page, { phone = "0551234567", email = "buyer@example
   await track.locator('input[name="carrier"]').fill("SMSA");
   await track.locator('input[name="number"]').fill("SMSA123456789");
   await track.locator('button[type="submit"]').first().click();
-  await admin.waitForTimeout(2000);
-  const after = (await sql`select status, tracking_number from orders where id = ${codOrder.id}`)[0];
+  let after;
+  for (let i = 0; i < 12; i++) {
+    await admin.waitForTimeout(700);
+    after = (await sql`select status, tracking_number from orders where id = ${codOrder.id}`)[0];
+    if (after.tracking_number) break;
+  }
   check("حفظ رقم التتبع من اللوحة", after.tracking_number === "SMSA123456789", JSON.stringify(after));
   await m.reload({ waitUntil: "networkidle" });
   check("رقم التتبع يظهر للعميل في صفحة الطلب", (await m.locator("body").innerText()).includes("SMSA123456789"));

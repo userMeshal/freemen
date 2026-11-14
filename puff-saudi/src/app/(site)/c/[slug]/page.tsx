@@ -11,6 +11,11 @@ export const revalidate = 600;
 
 type Props = { params: Promise<{ slug: string }> };
 
+export const dynamicParams = true;
+export async function generateStaticParams() {
+  return [];
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const slug = safeDecode((await params).slug);
   const category = await getCategory(slug);

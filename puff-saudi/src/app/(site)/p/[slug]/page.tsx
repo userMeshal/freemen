@@ -9,7 +9,14 @@ import { ProductCard } from "@/components/site/ProductCard";
 import { Reveal, SplitText } from "@/components/ui/Reveal";
 import type { ProductCardDTO, ProductDTO } from "@/lib/types";
 
-type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ v?: string }> };
+type Props = { params: Promise<{ slug: string }> };
+
+// صفحات المنتجات تُولَّد عند أول زيارة ثم تُخزَّن (ISR) — سريعة كصفحات ثابتة وتتحدث عند تعديل المنتج
+export const revalidate = 600;
+export const dynamicParams = true;
+export async function generateStaticParams() {
+  return [];
+}
 
 function toCard(p: ProductDTO): ProductCardDTO {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -36,8 +43,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function ProductPage({ params, searchParams }: Props) {
-  const [{ slug }, { v }] = await Promise.all([params, searchParams]);
+export default async function ProductPage({ params }: Props) {
+  const { slug } = await params;
   const [product, all] = await Promise.all([getProduct(safeDecode(slug)), getAllProducts()]);
   if (!product) notFound();
 
@@ -111,7 +118,6 @@ export default async function ProductPage({ params, searchParams }: Props) {
         familyKey={family?.key ?? null}
         colorSiblings={colorSiblings}
         sizeSiblings={sizeSiblings}
-        initialVariantId={v ? Number(v) : null}
       />
 
       {fallback.length > 0 && (

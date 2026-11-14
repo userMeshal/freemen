@@ -113,6 +113,7 @@ export function Reveal({
   clip?: boolean;
 }) {
   const { ref, inView } = useInView<HTMLElement>();
+  // في وضع القناع نراقب العنصر الخارجي (غير المقصوص) ونقصّ الداخلي؛ فالعنصر المقصوص كليًا لا يُعدّ ظاهرًا للمراقب
   return createElement(
     as,
     {
@@ -120,7 +121,7 @@ export function Reveal({
       className: `${clip ? "rv-clip" : "rv"} ${inView ? "is-in" : ""} ${className ?? ""}`,
       style: { "--d": `${delay}ms`, "--i": index } as CSSProperties,
     },
-    children,
+    clip ? <div className="rv-clip-inner">{children}</div> : children,
   );
 }
 

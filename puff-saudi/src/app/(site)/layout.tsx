@@ -70,7 +70,8 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
         >
           تخطَّ إلى المحتوى
         </a>
-        <Header links={NAV} />
+        {settings.announcement && <style>{`:root{--header-h:102px}`}</style>}
+        <Header links={NAV} announcement={settings.announcement} />
         <MobileMenu links={[...NAV, { href: "/track", label: "تتبّع طلبك", latin: "Track" }]} secondary={secondary} />
         <main id="main" className="relative">
           {children}

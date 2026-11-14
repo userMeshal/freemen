@@ -50,23 +50,24 @@ export function ProductView({
   familyKey,
   colorSiblings,
   sizeSiblings,
-  initialVariantId,
 }: {
   product: ProductDTO;
   familyName: string | null;
   familyKey: string | null;
   colorSiblings: SiblingLink[];
   sizeSiblings: SiblingLink[];
-  initialVariantId: number | null;
 }) {
   const { navigate } = usePageTransition();
   const add = useCart((s) => s.add);
   const openCart = useCart((s) => s.open);
 
   const firstAvailable = product.variants.find((v) => v.stock === null || v.stock > 0) ?? product.variants[0];
-  const [variantId, setVariantId] = useState<number>(
-    product.variants.some((v) => v.id === initialVariantId) ? initialVariantId! : firstAvailable.id,
-  );
+  const [variantId, setVariantId] = useState<number>(firstAvailable.id);
+  // المتغير المطلوب في الرابط (?v=) يُقرأ في المتصفح حتى تبقى الصفحة قابلة للتخزين المؤقت
+  useEffect(() => {
+    const wanted = Number(new URLSearchParams(window.location.search).get("v"));
+    if (wanted && product.variants.some((v) => v.id === wanted)) setVariantId(wanted);
+  }, [product.variants]);
   const variant = product.variants.find((v) => v.id === variantId) ?? firstAvailable;
   const multi = product.variants.length > 1;
 
@@ -398,7 +399,10 @@ export function ProductView({
                       </>
                     ) : (
                       <>
-                        أضف إلى السلة — <span className="num">{formatAmount(variant.price * qty)}</span> ر.س
+                        أضف إلى السلة
+                        <span className="hidden sm:inline">
+                          — <span className="num">{formatAmount(variant.price * qty)}</span> ر.س
+                        </span>
                       </>
                     )}
                   </motion.span>

@@ -26,7 +26,7 @@ export type HeroSlide = {
 };
 
 const EASE = [0.16, 1, 0.3, 1] as const;
-const AUTOPLAY_MS = 5200;
+const AUTOPLAY_MS = 6500;
 const HEADLINE = ["لونك.", "مزاجك.", "مشروبك."];
 
 export function Hero({ slides }: { slides: HeroSlide[] }) {
@@ -34,6 +34,7 @@ export function Hero({ slides }: { slides: HeroSlide[] }) {
   const cupWrap = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(0);
   const [auto, setAuto] = useState(true);
+  const [introDone, setIntroDone] = useState(false);
   const slide = slides[index];
 
   const go = useCallback(
@@ -52,13 +53,13 @@ export function Hero({ slides }: { slides: HeroSlide[] }) {
 
   // تبديل تلقائي — يتوقف عند تفاعل المستخدم أو إخفاء التبويب
   useEffect(() => {
-    if (!auto || slides.length < 2) return;
+    if (!auto || !introDone || slides.length < 2) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const t = setInterval(() => {
       if (!document.hidden && window.scrollY < window.innerHeight * 0.5) go(index + 1);
     }, AUTOPLAY_MS);
     return () => clearInterval(t);
-  }, [auto, index, go, slides.length]);
+  }, [auto, introDone, index, go, slides.length]);
 
   useGSAP(
     () => {
@@ -73,7 +74,10 @@ export function Hero({ slides }: { slides: HeroSlide[] }) {
         .to(".hero-hw", { y: 0, rotate: 0, duration: 1.1, stagger: 0.09 }, 0.5)
         .to(".hero-fade", { y: 0, opacity: 1, duration: 1, stagger: 0.08 }, 0.75);
 
-      const play = () => intro.play();
+      const play = () => {
+        intro.play();
+        setIntroDone(true);
+      };
       if (document.documentElement.classList.contains("no-preload")) gsap.delayedCall(0.3, play);
       else {
         window.addEventListener("puff:intro-start", play, { once: true });
@@ -182,12 +186,13 @@ export function Hero({ slides }: { slides: HeroSlide[] }) {
         >
           <div className="hero-cup-scroll will-change-transform">
             <div ref={cupWrap} className="hero-cup-float relative h-[43svh] w-[62vw] will-change-transform md:h-[min(72svh,760px)] md:w-[34vw]">
-              <AnimatePresence mode="wait" initial={false}>
+              {/* الكوب الجديد يدخل بينما القديم يخرج — لا لحظة فراغ */}
+              <AnimatePresence initial={false}>
                 <motion.div
                   key={slide.slug}
                   className="absolute inset-0"
                   initial={{ y: "14%", opacity: 0, rotate: 9, scale: 0.9 }}
-                  animate={{ y: 0, opacity: 1, rotate: 0, scale: 1, transition: { duration: 0.95, ease: EASE } }}
+                  animate={{ y: 0, opacity: 1, rotate: 0, scale: 1, transition: { duration: 0.95, ease: EASE, delay: 0.12 } }}
                   exit={{ y: "-10%", opacity: 0, rotate: -7, scale: 0.94, transition: { duration: 0.32, ease: [0.7, 0, 0.84, 0] } }}
                 >
                   <div className="h-full w-full motion-safe:animate-floaty">
