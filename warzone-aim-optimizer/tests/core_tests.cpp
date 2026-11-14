@@ -249,6 +249,49 @@ int main() {
                     poor.accuracy * 100, poor.trackOnTarget * 100, poor.medianReactionMs, poor.medianAcquireMs, poor.composite, poor.index);
     });
 
+    run("aim assist model: slowdown and rotational pull are well behaved", [] {
+        double slow = 9;
+        double radius = aimAssistRadius(1.8);
+        CHECK(radius > 6.0);
+        // Off: no effect at any distance.
+        Vec2 p = aimAssist(0.0, {2.0, 0.0}, radius, 1.0, 0.01, slow);
+        NEAR(slow, 1.0, 1e-12); NEAR(p.len(), 0.0, 1e-12);
+        // Outside the bubble: no effect.
+        p = aimAssist(2.0, {radius + 1.0, 0.0}, radius, 1.0, 0.01, slow);
+        NEAR(slow, 1.0, 1e-12); NEAR(p.len(), 0.0, 1e-12);
+        // Near the target, slowdown grows with strength and never freezes.
+        double s1, s2, s3;
+        aimAssist(1.0, {1.0, 0.0}, radius, 0.0, 0.01, s1);
+        aimAssist(2.0, {1.0, 0.0}, radius, 0.0, 0.01, s2);
+        aimAssist(3.0, {1.0, 0.0}, radius, 0.0, 0.01, s3);
+        CHECK(s1 < 1.0 && s2 < s1 && s3 < s2);
+        CHECK(s3 >= 0.10);
+        // No strafing -> no rotational pull; strafing -> pull toward the target.
+        NEAR(aimAssist(3.0, {3.0, 0.0}, radius, 0.0, 0.01, slow).len(), 0.0, 1e-12);
+        Vec2 pull = aimAssist(2.0, {3.0, 4.0}, radius, 1.0, 0.01, slow);
+        CHECK(pull.len() > 0.0);
+        NEAR(pull.x / pull.len(), 0.6, 1e-9);   // points toward the target (3,4)/5
+        NEAR(pull.y / pull.len(), 0.8, 1e-9);
+        // Stronger assist pulls harder, and the pull never oversteps the target.
+        Vec2 weak = aimAssist(1.0, {3.0, 4.0}, radius, 1.0, 0.01, slow);
+        CHECK(pull.len() > weak.len());
+        Vec2 big = aimAssist(3.0, {0.05, 0.0}, radius, 1.0, 1.0, slow);
+        CHECK(big.len() <= 0.05 + 1e-9);
+    });
+
+    run("aim assist makes the arena easier to control", [&] {
+        BenchConfig off = BenchConfig::quick();
+        BenchConfig on = BenchConfig::quick(); on.aimAssist = 2.5;
+        Bot weak{0.09, 0.32, 0.14, 1.3, true}; // mediocre aim, does strafe
+        BenchResult r0 = playBot(weak, prof, off);
+        BenchResult r2 = playBot(weak, prof, on);
+        CHECK(r2.trackOnTarget > r0.trackOnTarget);   // rotational assist helps tracking
+        CHECK(r2.accuracy >= r0.accuracy - 0.1);      // slowdown does not hurt firing accuracy
+        CHECK(r2.index > r0.index);                   // overall control improves
+        std::printf("    assist off: track %.0f%% acc %.0f%% index %.1f  |  assist 2.5x: track %.0f%% acc %.0f%% index %.1f\n",
+                    r0.trackOnTarget * 100, r0.accuracy * 100, r0.index, r2.trackOnTarget * 100, r2.accuracy * 100, r2.index);
+    });
+
     run("benchmark is deterministic for a given seed", [&] {
         BenchResult again = playBot(skilled, prof, cfg);
         NEAR(again.index, good.index, 1e-9); CHECK(again.shots == good.shots);

@@ -15,6 +15,7 @@ struct RunRecord {
     int sensH = 0, sensV = 0;
     double adsMult = 0, rsMin = 0;
     int curve = 0;
+    double aimAssist = 0;   // trainer aim-assist strength used for this run
     BenchResult r;
 };
 

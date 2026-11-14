@@ -8,6 +8,7 @@ const char* kLabels[] = {"Baseline", "Optimized", "Practice"};
 void startRun(App& app) {
     BenchUi& b = app.bench;
     BenchConfig cfg = b.modeIdx == 1 ? BenchConfig::quick() : BenchConfig();
+    cfg.aimAssist = b.assist;
     b.session = std::make_unique<BenchmarkSession>(app.profile, cfg);
     b.running = true;
     b.lastT = app.now;
@@ -26,6 +27,7 @@ void finishRun(App& app) {
     rec.quick = b.modeIdx == 1;
     rec.sensH = app.profile.sensH; rec.sensV = app.profile.sensV;
     rec.adsMult = app.profile.adsMult; rec.rsMin = app.profile.rsMin; rec.curve = (int)app.profile.curve;
+    rec.aimAssist = b.assist;
     rec.r = b.session->result();
     app.history.add(rec);
     app.history.save();
@@ -138,7 +140,9 @@ void drawArena(App& app, Ui& ui, const RectF& a) {
     else
         ui.text(fmt("Hits %d / %d shots", s.hits(), s.shots()), RectF(a.X + a.Width - 384, a.Y + 34, 200, 20), 12.5f, theme::text);
     ui.text("B or Esc: abort", RectF(a.X + a.Width - 140, a.Y + 10, 120, 22), 12.0f, theme::faint, Align::Right);
-    ui.text(app.profile.name, RectF(a.X + a.Width - 240, a.Y + 34, 220, 20), 12.0f, theme::faint, Align::Right);
+    std::string pname = app.profile.name;
+    if (s.assist() > 0.0) pname = fmt("Trainer aim assist %.1fx  |  ", s.assist()) + pname;
+    ui.text(pname, RectF(a.X + a.Width - 420, a.Y + 34, 400, 20), 12.0f, s.assist() > 0 ? theme::blue : theme::faint, Align::Right);
 
     auto banner = [&](const std::string& headline, const std::string& detail) {
         RectF r(cx - 300, cy - 130, 600, 100);
@@ -210,7 +214,16 @@ void pageBenchmark(App& app, Ui& ui, const RectF& a) {
     ui.text("Trainer field of view", RectF(x, yy, 150, 26), 12.0f, theme::dim);
     ui.slider("fov", RectF(x + 150, yy, w - 150 - 50, 26), app.profile.trainerFov, 80, 120, 1);
     ui.text(fmt("%.0f", app.profile.trainerFov), RectF(x + w - 46, yy, 46, 26), 13.0f, theme::text, Align::Right, true);
-    yy += 38;
+    yy += 36;
+    ui.text("Trainer aim assist", RectF(x, yy, 150, 26), 12.0f, theme::dim);
+    ui.slider("assist", RectF(x + 150, yy, w - 150 - 50, 26), b.assist, 0.0, 3.0, 0.5);
+    ui.text(b.assist <= 0.0 ? "Off" : fmt("%.1fx", b.assist), RectF(x + w - 46, yy, 46, 26), 13.0f, b.assist > 0 ? theme::blue : theme::text, Align::Right, true);
+    yy += 24;
+    ui.textWrap(b.assist <= 0.0
+        ? "Off: measures your raw stick control, the way Warzone's own aim assist is built on. Leave it off for baseline vs optimized comparisons."
+        : fmt("%.1fx: a trainer-only approximation so you can feel and measure aim assist. It changes nothing in Warzone. Compare only against runs at the same strength.", b.assist),
+        RectF(x, yy, w, 44), 11.5f, b.assist > 0 ? theme::blue : theme::faint);
+    yy += 50;
     ui.fillRound(RectF(x, yy, w, 74), 8, theme::bg);
     const Profile& p = app.profile;
     ui.text("Profile in use: " + p.name, RectF(x + 12, yy + 8, w - 24, 20), 12.5f, theme::text, Align::Left, true);
@@ -221,7 +234,8 @@ void pageBenchmark(App& app, Ui& ui, const RectF& a) {
     ui.textWrap("Stage 1  Flick & fire - targets appear around you; aim and shoot with RT.\n"
                 "Stage 2  Tracking - hold the crosshair on a strafing target.\n"
                 "Stage 3  ADS precision - hold LT and hit small, distant targets.\n\n"
-                "The trainer has no aim assist: it measures the raw stick control that the game's assist builds on. "
+                "With aim assist off the trainer measures raw stick control, the way the game's assist is built on. "
+                "The adjustable aim assist above is a trainer-only model for experimenting - it never touches Warzone. "
                 "Use the same posture, grip and distance from the screen for every run you want to compare.",
                 RectF(x, yy, w, 200), 12.0f, theme::dim);
     bool can = app.pad.connected;
@@ -260,6 +274,7 @@ void pageBenchmark(App& app, Ui& ui, const RectF& a) {
     statTile(ui, RectF(rx, ry, tw, th), "ADS PRECISION", fmt("%.0f%%", r.adsAccuracy * 100), fmt("targets hit, median %.0f ms", r.adsMedianAcquireMs));
     statTile(ui, RectF(rx + tw + 12, ry, tw, th), "CONTROL", fmt("%.0f%% overshoot", r.overshootRate * 100), fmt("stick pinned %.0f%%, strafing %.0f%%", r.saturation * 100, r.strafeUptime * 100));
     ry += th + 14;
+    if (b.last.aimAssist > 0.0) { ui.pill(fmt("TRAINER AIM ASSIST %.1fx (ARENA ONLY)", b.last.aimAssist), rx, ry, withAlpha(theme::blue, 50), theme::blue); ry += 28; }
     if (b.last.simulated) ui.pill("SIMULATED INPUT - NOT A REAL RESULT", rx, ry, withAlpha(theme::warn, 50), theme::warn);
     float by = R.Y + R.Height - 54;
     if (ui.button("Open Results", RectF(rx, by, 150, 38), Btn::Secondary)) app.go(Page::Results);

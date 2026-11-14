@@ -38,6 +38,7 @@ struct BenchUi {
     uint16_t prevButtons = 0;
     double pilotSeen = 0;
     bool pilotHad = false;
+    double assist = 0.0;   // trainer aim-assist strength chosen for the next run
 };
 
 struct ProfUi {

@@ -13,12 +13,26 @@ constexpr double kDegPerSecPerSens = 30.0; // trainer model: sens 6 = 180 deg/s 
 enum class Stage { Countdown, Flick, Break1, Tracking, Break2, Ads, Done };
 const char* stageName(Stage s);
 
+// Trainer-only aim-assist model. This runs entirely inside the benchmark
+// arena: it is an APPROXIMATION so you can feel and measure how assist
+// strength affects your own aim. It has no connection to Warzone and cannot
+// change the game's own aim assist. strength 0 = off (raw stick control),
+// 1 ~ console-style default, up to 3 for experimentation.
+//
+// Returns the rotational "pull" (yaw/pitch degrees) to add this frame, and
+// sets slowFactor, which the player's own aim delta is multiplied by
+// (slowdown near a target). Pure and deterministic so it can be unit-tested.
+Vec2 aimAssist(double strength, Vec2 toTarget, double radius, double moveMag, double dt, double& slowFactor);
+// Size of the assist bubble around a target of the given radius, in degrees.
+double aimAssistRadius(double targetRadius);
+
 struct BenchConfig {
     uint32_t seed = 20240917;
     int flickTargets = 16;
     double trackSeconds = 30.0;
     int adsTargets = 10;
     double targetTimeout = 4.0;
+    double aimAssist = 0.0;   // trainer aim-assist strength, 0..3 (0 = off)
     static BenchConfig quick() { BenchConfig c; c.flickTargets = 8; c.trackSeconds = 15.0; c.adsTargets = 6; return c; }
 };
 
@@ -73,6 +87,7 @@ public:
     bool onTarget() const { return onTarget_; }
     double time() const { return t_; }
     double stageTime() const { return stageT_; }
+    double assist() const { return cfg_.aimAssist; }
     double stageProgress() const;       // 0..1 within the current stage
     double overallProgress() const;     // 0..1 across the whole run
     int shots() const { return shots_; }

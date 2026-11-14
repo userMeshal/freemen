@@ -60,9 +60,13 @@ void pageResults(App& app, Ui& ui, const RectF& a) {
             ty += rh;
         }
         std::string note = fmt("Baseline: %s, \"%s\"   |   Selected: %s, \"%s\"", base->when.c_str(), base->profile.c_str(), cur->when.c_str(), cur->profile.c_str());
-        if (base->quick != cur->quick) note = "Warning: these runs used different lengths (Full vs Quick) - compare like with like.";
+        bool assistMismatch = std::fabs(base->aimAssist - cur->aimAssist) > 0.01;
+        if (assistMismatch) note = fmt("Warning: different trainer aim-assist strength (%.1fx vs %.1fx) - not a like-for-like comparison.", base->aimAssist, cur->aimAssist);
+        else if (base->quick != cur->quick) note = "Warning: these runs used different lengths (Full vs Quick) - compare like with like.";
         else if (base->simulated || cur->simulated) note = "Contains simulated (demo mode) input - not a real measurement.";
-        ui.text(note, RectF(x, T.Y + T.Height - 30, w, 18), 11.0f, (base->quick != cur->quick || base->simulated || cur->simulated) ? theme::warn : theme::faint);
+        else if (cur->aimAssist > 0.0) note = fmt("Both runs used %.1fx trainer aim assist (arena only - changes nothing in Warzone).", cur->aimAssist);
+        bool warnNote = assistMismatch || base->quick != cur->quick || base->simulated || cur->simulated;
+        ui.text(note, RectF(x, T.Y + T.Height - 30, w, 18), 11.0f, warnNote ? theme::warn : theme::faint);
     }
 
     // Goal card

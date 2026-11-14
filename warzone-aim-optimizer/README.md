@@ -72,6 +72,8 @@ Drift verdict: < 0.03 excellent, < 0.07 normal, < 0.13 noticeable, otherwise sev
 2. *Tracking* - keep the crosshair on a strafing target (random speed and direction changes).
 3. *ADS precision* - hold LT and hit small targets.
 
+Optionally, dial in trainer aim assist (0x-3x) to experiment - see below.
+
 | Metric | Definition |
 |---|---|
 | Accuracy | hits / (shots + timed-out targets) |
@@ -86,10 +88,23 @@ Drift verdict: < 0.03 excellent, < 0.07 normal, < 0.13 noticeable, otherwise sev
 bound, which is what makes "2x the baseline" a checkable target.
 
 The trainer applies your profile's deadzone, response curve, sensitivity and ADS multiplier
-to the stick, but has **no aim assist**: it measures the raw stick control the game's assist
-builds on. Its turn-rate model (sensitivity N = N x 30 deg/s at full stick) and curve shapes
+to the stick. Its turn-rate model (sensitivity N = N x 30 deg/s at full stick) and curve shapes
 are approximations for training and comparison, not a copy of the game's internals. Compare
 runs of the same length (Full with Full, Quick with Quick).
+
+**Adjustable trainer aim assist (0x-3x)** - a slider on the Benchmark page. At `0x` (default)
+the trainer measures your raw stick control, which is what the game's aim assist is built on;
+leave it off for baseline vs optimized comparisons. Above `0x` it adds a trainer-only
+approximation of aim assist so you can feel and measure how assist strength changes your
+accuracy and tracking:
+
+- *Slowdown* - the player's aim is damped as the crosshair nears a target (up to ~90 % at 3x).
+- *Rotational* - while you are strafing, the view is pulled toward the target.
+
+This model runs **only inside this program's training arena**. It does not and cannot change
+Warzone's own aim assist - nothing outside the game legitimately can. Each run records the
+strength it used; the Results page refuses to treat runs at different strengths as a fair
+comparison and labels any assisted run plainly.
 
 **Recommendations** - every suggested value is listed with its reason:
 

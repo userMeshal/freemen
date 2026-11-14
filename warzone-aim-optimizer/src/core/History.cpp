@@ -40,7 +40,7 @@ static KeyValue toKv(const RunRecord& x) {
     k.set("id", x.id); k.set("when", x.when); k.set("profile", x.profile); k.set("label", x.label);
     k.setInt("simulated", x.simulated); k.setInt("quick", x.quick);
     k.setInt("sensH", x.sensH); k.setInt("sensV", x.sensV); k.setNum("adsMult", x.adsMult);
-    k.setNum("rsMin", x.rsMin); k.setInt("curve", x.curve);
+    k.setNum("rsMin", x.rsMin); k.setInt("curve", x.curve); k.setNum("aimAssist", x.aimAssist);
     const BenchResult& r = x.r;
     k.setInt("shots", r.shots); k.setInt("hits", r.hits); k.setInt("targets", r.targets); k.setInt("timeouts", r.timeouts);
     k.setNum("accuracy", r.accuracy); k.setNum("reactMs", r.medianReactionMs); k.setNum("acquireMs", r.medianAcquireMs);
@@ -58,7 +58,7 @@ static RunRecord fromKv(const KeyValue& k) {
     x.id = k.get("id"); x.when = k.get("when"); x.profile = k.get("profile"); x.label = k.get("label");
     x.simulated = k.getInt("simulated") != 0; x.quick = k.getInt("quick") != 0;
     x.sensH = (int)k.getInt("sensH"); x.sensV = (int)k.getInt("sensV"); x.adsMult = k.getNum("adsMult");
-    x.rsMin = k.getNum("rsMin"); x.curve = (int)k.getInt("curve");
+    x.rsMin = k.getNum("rsMin"); x.curve = (int)k.getInt("curve"); x.aimAssist = k.getNum("aimAssist");
     BenchResult& r = x.r;
     r.valid = true;
     r.shots = (int)k.getInt("shots"); r.hits = (int)k.getInt("hits"); r.targets = (int)k.getInt("targets"); r.timeouts = (int)k.getInt("timeouts");

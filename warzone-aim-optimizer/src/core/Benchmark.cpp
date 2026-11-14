@@ -15,6 +15,24 @@ double map01(double v, double best, double worst) {
 }
 } // namespace
 
+double aimAssistRadius(double targetRadius) { return targetRadius * 3.0 + 6.0; }
+
+Vec2 aimAssist(double strength, Vec2 toTarget, double radius, double moveMag, double dt, double& slowFactor) {
+    slowFactor = 1.0;
+    if (strength <= 0.0 || radius <= 0.0 || dt <= 0.0) return {};
+    double dist = toTarget.len();
+    if (dist >= radius || dist < 1e-9) return {};
+    double fall = 1.0 - dist / radius;        // 1 at the centre, 0 at the edge
+    // Slowdown: the closer the crosshair sits to the target, the more the
+    // player's own aim is damped. Capped so very high strength never freezes.
+    slowFactor = clampd(1.0 - 0.30 * strength * fall, 0.10, 1.0);
+    // Rotational assist: while the player is moving (strafing), the view is
+    // pulled toward the target. Never steps past the target.
+    double pullRate = 22.0 * strength * fall * clampd(moveMag, 0.0, 1.0); // deg/s
+    double step = std::min(pullRate * dt, dist);
+    return toTarget * (step / dist);
+}
+
 const char* stageName(Stage s) {
     switch (s) {
         case Stage::Countdown: return "Get ready";
@@ -204,8 +222,18 @@ void BenchmarkSession::step(const BenchInput& in) {
     else if (prof_.adsTransition == 2) sensBlend = zoomBlend_ >= 1.0 ? 1.0 : 0.0;
     double scale = lerpd(1.0, prof_.adsMult / kAdsZoom, sensBlend);
 
-    yaw_ += aim.x * prof_.sensH * kDegPerSecPerSens * scale * dt;
-    pitch_ = clampd(pitch_ + aim.y * prof_.sensV * kDegPerSecPerSens * scale * dt, -70.0, 70.0);
+    double dYaw = aim.x * prof_.sensH * kDegPerSecPerSens * scale * dt;
+    double dPitch = aim.y * prof_.sensV * kDegPerSecPerSens * scale * dt;
+    // Trainer aim assist (arena only; never touches the game).
+    if (cfg_.aimAssist > 0.0 && target_.active) {
+        Vec2 toTarget(target_.yaw - yaw_, target_.pitch - pitch_);
+        double slow = 1.0;
+        Vec2 pull = aimAssist(cfg_.aimAssist, toTarget, aimAssistRadius(target_.radius), move.len(), dt, slow);
+        dYaw = dYaw * slow + pull.x;
+        dPitch = dPitch * slow + pull.y;
+    }
+    yaw_ += dYaw;
+    pitch_ = clampd(pitch_ + dPitch, -70.0, 70.0);
 
     // Strafing shifts the target sideways in view (parallax).
     if (target_.active) {
