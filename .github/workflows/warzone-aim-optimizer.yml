@@ -1,0 +1,39 @@
+name: Warzone Aim Optimizer (Windows build)
+
+on:
+  push:
+    paths:
+      - "warzone-aim-optimizer/**"
+      - ".github/workflows/warzone-aim-optimizer.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: warzone-aim-optimizer
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure (MSVC x64)
+        run: cmake -S . -B build -A x64
+      - name: Build
+        run: cmake --build build --config Release
+      - name: Core tests
+        run: build\Release\wz_core_tests.exe
+      - name: Launch smoke test (demo mode, 8 seconds)
+        shell: pwsh
+        run: |
+          $data = Join-Path $env:RUNNER_TEMP "wzdata"
+          $p = Start-Process -FilePath "build\Release\WarzoneAimOptimizer.exe" -ArgumentList "--demo","--data",$data -PassThru
+          Start-Sleep -Seconds 8
+          if ($p.HasExited) { Write-Error "App exited early with code $($p.ExitCode)"; exit 1 }
+          Stop-Process -Id $p.Id -Force
+          Write-Host "App stayed running for 8 seconds."
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WarzoneAimOptimizer-win64-msvc
+          path: warzone-aim-optimizer/build/Release/WarzoneAimOptimizer.exe
