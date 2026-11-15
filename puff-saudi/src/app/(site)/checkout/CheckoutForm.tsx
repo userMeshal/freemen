@@ -69,7 +69,7 @@ export function CheckoutForm({ prefill }: { prefill: Prefill }) {
   const items = useCart((s) => s.items);
   const coupon = useCart((s) => s.coupon);
   const [shippingMethodId, setShippingMethodId] = useState<number | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<"edfapay" | "cod" | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<"moyasar" | "edfapay" | "cod" | null>(null);
   const { quote, loading, notice, hydrated, empty } = useCartQuote({ shippingMethodId, paymentMethod });
   const [form, setForm] = useState(prefill);
   const [note, setNote] = useState("");
@@ -85,7 +85,7 @@ export function CheckoutForm({ prefill }: { prefill: Prefill }) {
     if (!quote) return;
     if (shippingMethodId === null && quote.shippingMethodId) setShippingMethodId(quote.shippingMethodId);
     if (paymentMethod === null) {
-      if (quote.payment.edfapay) setPaymentMethod("edfapay");
+      if (quote.payment.online) setPaymentMethod(quote.payment.online);
       else if (quote.payment.cod) setPaymentMethod("cod");
     }
     if (!tracked.current && quote.lines.length) {
@@ -112,7 +112,8 @@ export function CheckoutForm({ prefill }: { prefill: Prefill }) {
     );
   }
 
-  const noPayment = quote ? !quote.payment.edfapay && !quote.payment.cod : false;
+  const noPayment = quote ? !quote.payment.online && !quote.payment.cod : false;
+  const online = quote?.payment.online ?? null;
   const noShipping = quote ? quote.shippingOptions.length === 0 : false;
   const busy = pending || redirecting;
 
@@ -298,13 +299,13 @@ export function CheckoutForm({ prefill }: { prefill: Prefill }) {
             </p>
           ) : (
             <div className="space-y-2.5" role="radiogroup" aria-label="طريقة الدفع">
-              {quote?.payment.edfapay && (
+              {online && (
                 <label
                   className={`flex cursor-pointer items-start gap-4 rounded-2xl border-[1.5px] p-4 transition-colors duration-300 ${
-                    paymentMethod === "edfapay" ? "border-ink bg-paper-card" : "border-ink/15 hover:border-ink/40"
+                    paymentMethod === online ? "border-ink bg-paper-card" : "border-ink/15 hover:border-ink/40"
                   }`}
                 >
-                  <input type="radio" name="payment" className="mt-1 h-5 w-5 accent-[#0B0B0C]" checked={paymentMethod === "edfapay"} onChange={() => setPaymentMethod("edfapay")} />
+                  <input type="radio" name="payment" className="mt-1 h-5 w-5 accent-[#0B0B0C]" checked={paymentMethod === online} onChange={() => setPaymentMethod(online)} />
                   <span className="flex-1">
                     <span className="flex items-center gap-2 font-semibold">
                       <CreditCard size={18} /> دفع إلكتروني آمن
@@ -316,7 +317,11 @@ export function CheckoutForm({ prefill }: { prefill: Prefill }) {
                         </span>
                       ))}
                     </span>
-                    <span className="mt-2 block text-xs text-ink-mute">ستنتقل إلى صفحة الدفع الآمنة لدى EdfaPay لإتمام العملية.</span>
+                    <span className="mt-2 block text-xs text-ink-mute">
+                      {online === "moyasar"
+                        ? "تُدخل بيانات البطاقة في الخطوة التالية عبر نموذج ميسر الآمن."
+                        : "ستنتقل إلى صفحة الدفع الآمنة لدى EdfaPay لإتمام العملية."}
+                    </span>
                   </span>
                 </label>
               )}
@@ -384,6 +389,10 @@ export function CheckoutForm({ prefill }: { prefill: Prefill }) {
             </>
           ) : paymentMethod === "cod" ? (
             "تأكيد الطلب"
+          ) : paymentMethod === "moyasar" ? (
+            <>
+              <Lock size={17} /> متابعة إلى الدفع{quote ? <> — <span className="num">{formatAmount(quote.total)}</span> ر.س</> : null}
+            </>
           ) : (
             <>
               <Lock size={17} /> ادفع الآن{quote ? <> — <span className="num">{formatAmount(quote.total)}</span> ر.س</> : null}

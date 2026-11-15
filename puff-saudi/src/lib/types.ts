@@ -107,5 +107,10 @@ export type CartQuote = {
   couponError: string | null;
   shippingOptions: ShippingOption[];
   shippingMethodId: number | null;
-  payment: { edfapay: boolean; cod: boolean; codFee: number };
+  payment: {
+    /** بوابة الدفع الإلكتروني المتاحة حاليًا (ميسر لها الأولوية إن كانت مضبوطة) */
+    online: "moyasar" | "edfapay" | null;
+    cod: boolean;
+    codFee: number;
+  };
 };

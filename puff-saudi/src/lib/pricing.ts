@@ -2,7 +2,7 @@ import "server-only";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { coupons, productImages, products, shippingMethods, variants } from "@/db/schema";
-import { edfapayConfigured, getSettings } from "./settings";
+import { getSettings, onlineProvider } from "./settings";
 import { formatSar, vatIncluded } from "./money";
 import type { CartLineInput, CartQuote, PricedLine, ShippingOption } from "./types";
 
@@ -43,7 +43,7 @@ export function evaluateCoupon(
 export type QuoteOptions = {
   couponCode?: string | null;
   shippingMethodId?: number | null;
-  paymentMethod?: "edfapay" | "cod" | null;
+  paymentMethod?: "moyasar" | "edfapay" | "cod" | null;
 };
 
 export async function quoteCart(
@@ -164,7 +164,7 @@ export async function quoteCart(
   const shipping = lines.length && selected ? selected.effectivePrice : 0;
 
   const payment = {
-    edfapay: settings.edfapayEnabled && edfapayConfigured(),
+    online: onlineProvider(settings),
     cod: settings.codEnabled,
     codFee: settings.codFee,
   };

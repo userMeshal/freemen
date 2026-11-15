@@ -63,11 +63,15 @@ async function fillCheckout(page, { phone = "0551234567", email = "buyer@example
   await admin.goto(`${BASE}/admin/settings`);
   const cod = admin.locator('input[name="codEnabled"]');
   if (!(await cod.isChecked())) await cod.check();
+  // نعطّل ميسر مؤقتًا ليُختبر مسار EdfaPay أولًا (ميسر له الأولوية عندما يكون مفعّلًا)
+  const moyToggle = admin.locator('input[name="moyasarEnabled"]');
+  if (await moyToggle.isChecked()) await moyToggle.uncheck();
   await admin.fill('input[name="codFee"]', "10");
   await cod.locator("xpath=ancestor::form").locator('button[type="submit"]').click();
   await admin.waitForTimeout(1800);
   const st = (await sql`select value from settings where key='store'`)[0].value;
   check("حفظ إعدادات الدفع (COD مفعّل برسوم 10 ر.س)", st.codEnabled === true && st.codFee === 1000, JSON.stringify(st));
+  check("تعطيل ميسر من اللوحة", st.moyasarEnabled === false);
 
   await sql`delete from coupons where code = 'TEST20'`;
   await admin.goto(`${BASE}/admin/coupons`);
@@ -284,6 +288,98 @@ async function fillCheckout(page, { phone = "0551234567", email = "buyer@example
   });
   check("webhook بتوقيع مزوّر يُرفض (401)", forged.status() === 401);
   check("الطلب COD لم يتأثر بالـ webhook المزوّر", (await sql`select payment_status from orders where number=${codNumber}`)[0].payment_status === "unpaid");
+
+  // ─────────────── 5ب) الدفع عبر ميسر داخل الموقع ───────────────
+  console.log("\n[5ب] دفع إلكتروني عبر ميسر (نموذج داخل الموقع)");
+  // نموذج ميسر يتصل بـ api.moyasar.com دائمًا — نحوّل طلبات المتصفح إلى البوابة الوهمية
+  await desk.route("https://api.moyasar.com/**", async (route) => {
+    const r = await route.fetch({ url: route.request().url().replace("https://api.moyasar.com", "http://127.0.0.1:4011") });
+    await route.fulfill({ response: r });
+  });
+  await admin.goto(`${BASE}/admin/settings`);
+  await admin.locator('input[name="moyasarEnabled"]').check();
+  await admin.locator('input[name="moyasarEnabled"]').locator("xpath=ancestor::form").locator('button[type="submit"]').click();
+  await admin.waitForTimeout(1800);
+  check("تفعيل ميسر من اللوحة", (await sql`select value from settings where key='store'`)[0].value.moyasarEnabled === true);
+  // ربط الإشعارات تلقائيًا (إنشاء webhook + تأكيد رمز التفعيل آليًا)
+  await admin.goto(`${BASE}/admin/settings`);
+  await admin.waitForTimeout(800);
+  const connect = admin.getByRole("button", { name: "ربط إشعارات ميسر تلقائيًا" });
+  if (await connect.count()) {
+    await connect.click();
+    await admin.waitForTimeout(3000);
+  }
+  const t0 = Date.now();
+  await admin.goto(`${BASE}/admin/settings`);
+  await admin.waitForTimeout(800);
+  check("صفحة الإعدادات تُحمَّل سريعًا مع قراءة حالة ميسر", Date.now() - t0 < 8000, `${Date.now() - t0}ms`);
+  check("إشعارات ميسر مربوطة ومفعّلة (تأكيد الرمز آليًا)", (await admin.locator("body").innerText()).includes("مربوطة ومفعّلة"));
+
+  const payCard = async (page, number) => {
+    await page.waitForSelector("#mysr-cc-number", { timeout: 20000 });
+    // النموذج يعتمد على أحداث لوحة المفاتيح للتنسيق والتحقق، فنكتب حرفًا حرفًا
+    await page.locator("#mysr-cc-name").pressSequentially("Test User");
+    await page.locator("#mysr-cc-number").pressSequentially(number);
+    await page.locator("#mysr-cc-exp").pressSequentially("1230");
+    await page.locator("#mysr-cc-csc").pressSequentially("123");
+    await page.locator('.mysr-form button[type="submit"]').click();
+  };
+  const startMoyasarOrder = async (phone) => {
+    await d.goto(`${BASE}/p/sippy-550-22`, { waitUntil: "networkidle" });
+    await d.waitForTimeout(1000);
+    await d.getByRole("button", { name: "اشترِ الآن" }).click();
+    await d.waitForURL(/\/checkout$/, { timeout: 15000 });
+    await d.waitForTimeout(2200);
+    await fillCheckout(d, { phone, email: "moyasar@example.com" });
+    await d.locator('input[name="payment"]').first().check();
+    await d.waitForTimeout(1200);
+    await d.locator('button[type="submit"]').last().click();
+    await d.waitForURL(/\/checkout\/pay\/PF\d+/, { timeout: 20000 });
+    return d.url().match(/PF\d+/)[0];
+  };
+
+  const mNum = await startMoyasarOrder("0541110001");
+  check("ميسر: الانتقال لصفحة الدفع داخل الموقع", true);
+  let mo = (await sql`select * from orders where number=${mNum}`)[0];
+  check("ميسر: الطلب محفوظ «غير مدفوع» بطريقة moyasar", mo.payment_method === "moyasar" && mo.payment_status === "unpaid");
+  // بطاقة مرفوضة
+  await payCard(d, "4000000000000002");
+  await d.waitForURL(/\/checkout\/return/, { timeout: 25000 });
+  await d.waitForTimeout(2000);
+  check("ميسر: بطاقة مرفوضة تعرض صفحة فشل الدفع", (await d.locator("body").innerText()).includes("لم تكتمل عملية الدفع"));
+  check("ميسر: حالة الدفع «failed»", (await sql`select payment_status from orders where id=${mo.id}`)[0].payment_status === "failed");
+  // إعادة المحاولة ببطاقة مقبولة
+  await d.getByRole("button", { name: /إعادة محاولة الدفع/ }).click();
+  await d.waitForURL(/\/checkout\/pay\/PF\d+/, { timeout: 20000 });
+  await payCard(d, "4111111111111111");
+  await d.waitForURL(/\/order\/PF\d+/, { timeout: 30000 });
+  await d.waitForTimeout(1500);
+  mo = (await sql`select * from orders where id=${mo.id}`)[0];
+  check("ميسر: الدفع مؤكَّد عند العودة — «paid» و«processing»", mo.payment_status === "paid" && mo.status === "processing", JSON.stringify([mo.payment_status, mo.status]));
+  check("ميسر: رقم العملية محفوظ", /^[0-9a-f-]{36}$/.test(mo.gateway_transaction_id || ""));
+  check("ميسر: الإجمالي 174 + 25 = 199 ر.س", mo.total === 19900, String(mo.total));
+
+  // طلب ثانٍ: محاولة اعتماده بعملية تخص طلبًا آخر يجب أن تفشل
+  const mNum2 = await startMoyasarOrder("0541110002");
+  const mo2 = (await sql`select * from orders where number=${mNum2}`)[0];
+  await d.request.get(`${BASE}/checkout/return?o=${mNum2}&t=${mo2.access_token}&id=${mo.gateway_transaction_id}`);
+  check("ميسر: عملية طلب آخر لا تعتمد هذا الطلب", (await sql`select payment_status from orders where id=${mo2.id}`)[0].payment_status === "unpaid");
+  // العميل يدفع ثم يغلق المتصفح قبل العودة: الـ webhook وحده يؤكد الطلب
+  await d.route("http://127.0.0.1:4011/3ds*", (route) => route.continue({ url: route.request().url() + "&abandon=1" }));
+  await d.goto(`${BASE}/checkout/pay/${mNum2}?t=${mo2.access_token}`, { waitUntil: "networkidle" });
+  await payCard(d, "4111111111111111");
+  let hooked;
+  for (let i = 0; i < 15; i++) {
+    await d.waitForTimeout(700);
+    hooked = (await sql`select payment_status, status from orders where id=${mo2.id}`)[0];
+    if (hooked.payment_status === "paid") break;
+  }
+  check("ميسر: الـ webhook يؤكد الدفع دون عودة العميل", hooked.payment_status === "paid" && hooked.status === "processing", JSON.stringify(hooked));
+  await d.unroute("http://127.0.0.1:4011/3ds*");
+  const forgedM = await d.request.post(`${BASE}/api/webhooks/moyasar`, {
+    data: { type: "payment_paid", secret_token: "wrong", data: { id: mo.gateway_transaction_id, description: `PUFF SAUDI ${codNumber}` } },
+  });
+  check("ميسر: webhook بسرّ خاطئ يُرفض (401)", forgedM.status() === 401);
 
   // ─────────────── 6) حساب العميل ───────────────
   console.log("\n[6] حساب العميل");

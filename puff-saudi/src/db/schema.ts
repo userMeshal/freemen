@@ -163,7 +163,7 @@ export const shippingMethods = pgTable("shipping_methods", {
 
 export type OrderStatus = "pending" | "processing" | "shipped" | "delivered" | "cancelled";
 export type PaymentStatus = "unpaid" | "paid" | "failed" | "refunded";
-export type PaymentMethod = "edfapay" | "cod";
+export type PaymentMethod = "moyasar" | "edfapay" | "cod";
 
 export const orders = pgTable(
   "orders",

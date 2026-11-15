@@ -6,7 +6,7 @@ import { getCustomer } from "@/lib/auth";
 import { formatAmount } from "@/lib/money";
 import { displayPhone } from "@/lib/normalize";
 import { getOrderByNumber, ORDER_STATUS_LABEL, PAYMENT_METHOD_LABEL, PAYMENT_STATUS_LABEL } from "@/lib/orders";
-import { edfapayConfigured } from "@/lib/settings";
+import { edfapayConfigured, moyasarKeysPresent } from "@/lib/settings";
 import { TLink } from "@/components/site/Transition";
 import { Reveal, SplitText } from "@/components/ui/Reveal";
 import { OrderClient, RetryPayment } from "./OrderClient";
@@ -42,7 +42,8 @@ export default async function OrderPage({ params, searchParams }: Props) {
 
   const cancelled = order.status === "cancelled";
   const stepIndex = STEPS.findIndex((s) => s.key === order.status);
-  const awaitingPayment = order.paymentMethod === "edfapay" && order.paymentStatus !== "paid" && !cancelled;
+  const awaitingPayment = order.paymentMethod !== "cod" && order.paymentStatus !== "paid" && !cancelled;
+  const canPayNow = order.paymentMethod === "moyasar" ? moyasarKeysPresent() : edfapayConfigured();
   const isNew = sp.new === "1" && !awaitingPayment;
   const publicEvents = order.events.filter((e) => e.isPublic);
 
@@ -73,7 +74,7 @@ export default async function OrderPage({ params, searchParams }: Props) {
                 ? "استلمنا طلبك وسنبدأ بتجهيزه. احتفظ برقم الطلب لمتابعة حالته في أي وقت من صفحة «تتبّع طلبك»."
                 : `آخر تحديث: ${dateFmt.format(order.updatedAt)}`}
           </p>
-          {awaitingPayment && edfapayConfigured() && (
+          {awaitingPayment && canPayNow && (
             <RetryPayment number={order.number} token={order.accessToken} errorHint={sp.pay === "error"} />
           )}
         </header>

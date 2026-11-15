@@ -22,6 +22,12 @@ export type StoreSettings = {
   metaPixelId: string;
   tiktokPixelId: string;
   edfapayEnabled: boolean;
+  moyasarEnabled: boolean;
+  /** Apple Pay عبر ميسر — يتطلب تسجيل الدومين في لوحة ميسر */
+  moyasarApplePay: boolean;
+  moyasarStcPay: boolean;
+  /** محتوى ملف التحقق من دومين Apple Pay (يُنزَّل من لوحة ميسر) */
+  applePayDomainFile: string;
   codEnabled: boolean;
   /** رسوم الدفع عند الاستلام بالهللة */
   codFee: number;
@@ -44,6 +50,10 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   metaPixelId: "",
   tiktokPixelId: "",
   edfapayEnabled: true,
+  moyasarEnabled: true,
+  moyasarApplePay: false,
+  moyasarStcPay: false,
+  applePayDomainFile: "",
   codEnabled: false,
   codFee: 0,
 };
@@ -67,6 +77,20 @@ export async function saveSettings(patch: Partial<StoreSettings>) {
     .values({ key: "store", value: next })
     .onConflictDoUpdate({ target: settings.key, set: { value: next } });
   return next;
+}
+
+export function moyasarKeysPresent(): boolean {
+  return Boolean(
+    (process.env.MOYASAR_SECRET_KEY || "").trim() &&
+      (process.env.MOYASAR_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_MOYASAR_PUBLISHABLE_KEY || "").trim(),
+  );
+}
+
+/** بوابة الدفع الإلكتروني الفعّالة: ميسر أولًا إن كانت مفاتيحها مضبوطة ومفعّلة، ثم EdfaPay */
+export function onlineProvider(s: Pick<StoreSettings, "moyasarEnabled" | "edfapayEnabled">): "moyasar" | "edfapay" | null {
+  if (s.moyasarEnabled && moyasarKeysPresent()) return "moyasar";
+  if (s.edfapayEnabled && edfapayConfigured()) return "edfapay";
+  return null;
 }
 
 export function edfapayConfigured(): boolean {

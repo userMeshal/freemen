@@ -3,13 +3,15 @@ import { CheckCircle2, XCircle } from "lucide-react";
 import { db } from "@/db";
 import { admins } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
-import { edfapayConfigured, getSettings, siteUrl } from "@/lib/settings";
+import { edfapayConfigured, getSettings, moyasarKeysPresent, siteUrl } from "@/lib/settings";
+import { listWebhooks, moyasarMode } from "@/lib/moyasar";
 import { fmtDate, halalasToInput } from "@/lib/admin-utils";
-import { Badge, Card, Checkbox, Field, Input, PageHeader } from "@/components/admin/ui";
+import { Badge, Card, Checkbox, Field, Input, PageHeader, Textarea } from "@/components/admin/ui";
 import { ActionForm, ConfirmButton, CopyField, SubmitButton } from "@/components/admin/client";
 import {
   addAdminAction,
   changePasswordAction,
+  connectMoyasarWebhookAction,
   removeAdminAction,
   saveMarketingAction,
   savePaymentAction,
@@ -36,7 +38,20 @@ export default async function AdminSettingsPage() {
   const env = process.env.EDFAPAY_ENV === "production" ? "production" : "sandbox";
   const webhookUrl = `${siteUrl()}/api/webhooks/edfapay`;
   const hasBlob = Boolean(process.env.BLOB_READ_WRITE_TOKEN);
-  const noPayment = !s.codEnabled && !(s.edfapayEnabled && hasKey);
+  const hasMoyasar = moyasarKeysPresent();
+  const mode = moyasarMode();
+  const moyasarWebhookUrl = `${siteUrl()}/api/webhooks/moyasar`;
+  // حالة ربط الإشعارات تُقرأ من حساب ميسر مباشرة (إن تعذّر الاتصال نعرضها «غير معروفة»)
+  let moyasarWebhook: "verified" | "pending" | "missing" | "unknown" = "unknown";
+  if (hasMoyasar) {
+    try {
+      const hook = (await listWebhooks()).find((w) => w.url === moyasarWebhookUrl);
+      moyasarWebhook = !hook ? "missing" : hook.verified === false ? "pending" : "verified";
+    } catch {
+      moyasarWebhook = "unknown";
+    }
+  }
+  const noPayment = !s.codEnabled && !(s.edfapayEnabled && hasKey) && !(s.moyasarEnabled && hasMoyasar);
 
   return (
     <>
@@ -110,10 +125,27 @@ export default async function AdminSettingsPage() {
         <Card title="وسائل الدفع">
           {noPayment ? (
             <p className="mb-4 rounded-xl bg-amber-50 px-3.5 py-2.5 text-sm font-medium leading-7 text-amber-800">
-              لا توجد وسيلة دفع متاحة للعملاء حاليًا. أضف مفتاح EdfaPay في متغيرات البيئة أو فعّل الدفع عند الاستلام.
+              لا توجد وسيلة دفع متاحة للعملاء حاليًا. أضف مفاتيح ميسر (أو EdfaPay) في متغيرات البيئة أو فعّل الدفع عند الاستلام.
             </p>
           ) : null}
           <ActionForm action={savePaymentAction} className="space-y-4">
+            <div className="rounded-xl border border-line p-4">
+              <Checkbox name="moyasarEnabled" defaultChecked={s.moyasarEnabled} label={<strong>الدفع الإلكتروني عبر ميسر (Moyasar)</strong>} />
+              <p className="mt-1.5 text-xs leading-relaxed text-ink-mute">
+                مدى، فيزا وماستركارد داخل الموقع. له الأولوية على EdfaPay عندما تكون مفاتيحه مضبوطة.
+              </p>
+              <div className="mt-3 space-y-2 border-t border-line pt-3">
+                <Checkbox name="moyasarApplePay" defaultChecked={s.moyasarApplePay} label="إظهار Apple Pay (بعد تسجيل الدومين في لوحة ميسر)" />
+                <Checkbox name="moyasarStcPay" defaultChecked={s.moyasarStcPay} label="إظهار STC Pay (إن كان مفعّلًا في حسابك لدى ميسر)" />
+              </div>
+              <Field
+                label="ملف التحقق من دومين Apple Pay"
+                className="mt-3"
+                hint="من لوحة ميسر ← Apple Pay Domains: أضف الدومين، نزّل ملف التحقق، افتحه والصق محتواه هنا ثم احفظ، ثم اضغط Validate في لوحة ميسر."
+              >
+                <Textarea name="applePayDomainFile" dir="ltr" rows={3} defaultValue={s.applePayDomainFile} className="font-mono text-[11px]" />
+              </Field>
+            </div>
             <div className="rounded-xl border border-line p-4">
               <Checkbox name="edfapayEnabled" defaultChecked={s.edfapayEnabled} label={<strong>الدفع الإلكتروني عبر EdfaPay</strong>} />
               <p className="mt-1.5 text-xs leading-relaxed text-ink-mute">
@@ -128,6 +160,48 @@ export default async function AdminSettingsPage() {
             </div>
             <SubmitButton>حفظ إعدادات الدفع</SubmitButton>
           </ActionForm>
+        </Card>
+
+        <Card
+          title="حالة ربط ميسر (Moyasar)"
+          actions={
+            hasMoyasar ? (
+              <Badge tone={mode === "live" ? "green" : "amber"}>{mode === "live" ? "مفاتيح حيّة (Live)" : mode === "test" ? "مفاتيح اختبار (Test)" : "مفاتيح غير معروفة النوع"}</Badge>
+            ) : null
+          }
+        >
+          <ul className="space-y-2">
+            <Check ok={Boolean((process.env.MOYASAR_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_MOYASAR_PUBLISHABLE_KEY || "").trim())}>
+              المفتاح العام <code dir="ltr" className="rounded bg-paper-deep px-1.5 py-0.5 text-xs">MOYASAR_PUBLISHABLE_KEY</code>
+            </Check>
+            <Check ok={Boolean((process.env.MOYASAR_SECRET_KEY || "").trim())}>
+              المفتاح السري <code dir="ltr" className="rounded bg-paper-deep px-1.5 py-0.5 text-xs">MOYASAR_SECRET_KEY</code>
+            </Check>
+            <Check ok={s.moyasarEnabled}>الدفع عبر ميسر {s.moyasarEnabled ? "مفعّل" : "متوقف"} من إعدادات المتجر</Check>
+            <Check ok={moyasarWebhook === "verified"}>
+              إشعارات الدفع (Webhook):{" "}
+              {moyasarWebhook === "verified"
+                ? "مربوطة ومفعّلة"
+                : moyasarWebhook === "pending"
+                  ? "مسجّلة وبانتظار التفعيل"
+                  : moyasarWebhook === "missing"
+                    ? "غير مربوطة بعد"
+                    : hasMoyasar
+                      ? "تعذّر قراءة الحالة من ميسر"
+                      : "تحتاج المفاتيح أولًا"}
+            </Check>
+          </ul>
+          {hasMoyasar && moyasarWebhook !== "verified" ? (
+            <ActionForm action={connectMoyasarWebhookAction} className="mt-4">
+              <SubmitButton variant="dark" size="sm">
+                ربط إشعارات ميسر تلقائيًا
+              </SubmitButton>
+            </ActionForm>
+          ) : null}
+          <p className="mt-3 text-[11px] leading-relaxed text-ink-mute">
+            المفاتيح تُضاف كمتغيرات بيئة في Vercel ثم يُعاد النشر. الدفع يُؤكَّد عند عودة العميل للموقع، والإشعارات احتياط لمن يغلق المتصفح قبل
+            العودة. رابط الإشعارات: <code dir="ltr">{moyasarWebhookUrl}</code>
+          </p>
         </Card>
 
         <Card
