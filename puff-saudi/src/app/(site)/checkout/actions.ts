@@ -247,7 +247,7 @@ export async function createMoyasarIntentAction(input: { number: string; token: 
     return { ok: true, id: intent.id, clientSecret: intent.client_secret };
   } catch (e) {
     console.error("[moyasar] create intent failed", e);
-    return { ok: false, error: "تعذّر الاتصال ببوابة الدفع. حاول بعد قليل." };
+    return { ok: false, error: "تعذّر الاتصال ببوابة الدفع. حاول بعد قليل أو اختر وسيلة دفع أخرى." };
   }
 }
 

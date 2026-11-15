@@ -37,8 +37,35 @@ export function moyasarMode(): "live" | "test" | "unknown" {
   return "unknown";
 }
 
+/**
+ * ميسر يقبل المفتاح السري الحيّ من عناوين IP محددة فقط، ومنصات Serverless (مثل Vercel) لا تملك عنوانًا ثابتًا.
+ * عند ضبط MOYASAR_PROXY_URL تمر طلبات الخادم إلى ميسر عبر وسيط بعنوان ثابت (نفق HTTPS — الوسيط لا يرى المحتوى).
+ * الصيغة: http://USER:PASSWORD@HOST:PORT
+ */
+export function moyasarProxyConfigured(): boolean {
+  return Boolean((process.env.MOYASAR_PROXY_URL || "").trim());
+}
+
+type MinimalResponse = { ok: boolean; status: number; json: () => Promise<unknown> };
+
+async function send(url: string, init: { method: string; headers: Record<string, string>; body?: string }): Promise<MinimalResponse> {
+  const proxy = (process.env.MOYASAR_PROXY_URL || "").trim();
+  if (!proxy) {
+    return fetch(url, { ...init, cache: "no-store", signal: AbortSignal.timeout(20_000) });
+  }
+  const { fetch: proxiedFetch, ProxyAgent } = await import("undici");
+  const dispatcher = new ProxyAgent(proxy);
+  try {
+    const res = await proxiedFetch(url, { ...init, dispatcher, signal: AbortSignal.timeout(25_000) });
+    const body = await res.json().catch(() => null);
+    return { ok: res.ok, status: res.status, json: async () => body };
+  } finally {
+    void dispatcher.close().catch(() => {});
+  }
+}
+
 async function api<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
-  const res = await fetch(`${BASE()}${path}`, {
+  const res = await send(`${BASE()}${path}`, {
     method: init.method ?? "GET",
     headers: {
       Authorization: `Basic ${Buffer.from(`${secretKey()}:`).toString("base64")}`,
@@ -46,14 +73,24 @@ async function api<T>(path: string, init: { method?: string; body?: unknown } = 
       ...(init.body ? { "Content-Type": "application/json" } : {}),
     },
     body: init.body ? JSON.stringify(init.body) : undefined,
-    cache: "no-store",
-    signal: AbortSignal.timeout(20_000),
   });
   const json = (await res.json().catch(() => null)) as (T & { message?: string; type?: string }) | null;
   if (!res.ok || !json) {
-    throw new Error(`Moyasar ${init.method ?? "GET"} ${path} failed (${res.status}): ${json?.message ?? json?.type ?? "no body"}`);
+    const message = json?.message ?? json?.type ?? "no body";
+    if (res.status === 401 && /whitelist|not allowed|ip address/i.test(String(message))) {
+      throw new MoyasarIpNotAllowedError(String(message));
+    }
+    throw new Error(`Moyasar ${init.method ?? "GET"} ${path} failed (${res.status}): ${message}`);
   }
   return json;
+}
+
+/** ميسر رفض الطلب لأن عنوان IP الخادم ليس في قائمة «عناوين IP المسموحة» للمفتاح السري */
+export class MoyasarIpNotAllowedError extends Error {
+  constructor(detail: string) {
+    super(`Moyasar refused this server's IP address: ${detail}`);
+    this.name = "MoyasarIpNotAllowedError";
+  }
 }
 
 /** الوصف المقفل على العملية — نربط به العملية بالطلب عند التحقق */

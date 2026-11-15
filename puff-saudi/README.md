@@ -41,6 +41,7 @@ npm run dev                     # http://localhost:3000  — اللوحة: /admi
 | `NEXT_PUBLIC_SITE_URL` | رابط الموقع النهائي بدون `/` في الآخر |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | حساب المدير الأول (كلمة المرور 10 أحرف على الأقل). يُنشأ مرة واحدة عند أول `db:seed` |
 | `MOYASAR_PUBLISHABLE_KEY` / `MOYASAR_SECRET_KEY` | مفاتيح ميسر (اختبار أو حيّة) |
+| `MOYASAR_PROXY_URL` | (للمفاتيح الحيّة على Vercel) وسيط بعنوان IP ثابت: `http://USER:PASSWORD@HOST:PORT` |
 | `EDFAPAY_ENV` | `sandbox` أو `production` |
 | `EDFAPAY_API_KEY` | مفتاح API من لوحة EdfaPay |
 | `EDFAPAY_WEBHOOK_SECRET` | السر الذي تضعه في لوحة EdfaPay ← Configuration ← Webhook |
@@ -67,6 +68,13 @@ npm run dev                     # http://localhost:3000  — اللوحة: /admi
 2. أعد النشر (Deployments ← Redeploy).
 3. من لوحة التحكم ← الإعدادات ← «حالة ربط ميسر» اضغط **ربط إشعارات ميسر تلقائيًا** (يسجّل الـ webhook ويؤكد رمز التفعيل آليًا).
 4. Apple Pay (اختياري): في لوحة ميسر ← Apple Pay Domains أضف الدومين ونزّل ملف التحقق، الصق محتواه في الإعدادات ← وسائل الدفع واحفظ، اضغط Validate ثم Register في لوحة ميسر، ثم فعّل «إظهار Apple Pay».
+
+### المفاتيح الحيّة تحتاج عنوان IP ثابتًا
+
+ميسر يقبل المفتاح السري الحيّ (`sk_live_…`) من «عناوين IP المسموحة» فقط، وVercel لا يعطي عنوانًا ثابتًا افتراضيًا. مفاتيح الاختبار تعمل من أي عنوان.
+
+- **وسيط بعنوان ثابت:** اشترك في خدمة Static IP proxy، أضف العنوانين اللذين تعطيك إياهما في لوحة ميسر ← API Keys ← عناوين IP المسموحة، ثم أضف في Vercel المتغير `MOYASAR_PROXY_URL` بصيغة `http://USER:PASSWORD@HOST:PORT`. طلبات الخادم إلى ميسر فقط تمر عبره (نفق HTTPS، الوسيط لا يرى المحتوى).
+- **أو Static IPs من Vercel** (خطة Pro): لا يحتاج أي متغير؛ أضف عناوين Vercel الثابتة في لوحة ميسر.
 
 ميسر له الأولوية على EdfaPay عندما تكون مفاتيحه مضبوطة ومفعّلًا من الإعدادات. التحقق من كل عملية يتم من API ميسر بالمفتاح السري (الحالة + المبلغ + رقم الطلب) عند عودة العميل، والـ webhook احتياط لمن يغلق المتصفح.
 

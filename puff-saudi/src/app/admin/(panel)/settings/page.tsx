@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { admins } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
 import { edfapayConfigured, getSettings, moyasarKeysPresent, siteUrl } from "@/lib/settings";
-import { listWebhooks, moyasarMode } from "@/lib/moyasar";
+import { listWebhooks, MoyasarIpNotAllowedError, moyasarMode, moyasarProxyConfigured } from "@/lib/moyasar";
 import { fmtDate, halalasToInput } from "@/lib/admin-utils";
 import { Badge, Card, Checkbox, Field, Input, PageHeader, Textarea } from "@/components/admin/ui";
 import { ActionForm, ConfirmButton, CopyField, SubmitButton } from "@/components/admin/client";
@@ -43,12 +43,14 @@ export default async function AdminSettingsPage() {
   const moyasarWebhookUrl = `${siteUrl()}/api/webhooks/moyasar`;
   // حالة ربط الإشعارات تُقرأ من حساب ميسر مباشرة (إن تعذّر الاتصال نعرضها «غير معروفة»)
   let moyasarWebhook: "verified" | "pending" | "missing" | "unknown" = "unknown";
+  let moyasarIpBlocked = false;
   if (hasMoyasar) {
     try {
       const hook = (await listWebhooks()).find((w) => w.url === moyasarWebhookUrl);
       moyasarWebhook = !hook ? "missing" : hook.verified === false ? "pending" : "verified";
-    } catch {
+    } catch (e) {
       moyasarWebhook = "unknown";
+      moyasarIpBlocked = e instanceof MoyasarIpNotAllowedError;
     }
   }
   const noPayment = !s.codEnabled && !(s.edfapayEnabled && hasKey) && !(s.moyasarEnabled && hasMoyasar);
@@ -178,6 +180,12 @@ export default async function AdminSettingsPage() {
               المفتاح السري <code dir="ltr" className="rounded bg-paper-deep px-1.5 py-0.5 text-xs">MOYASAR_SECRET_KEY</code>
             </Check>
             <Check ok={s.moyasarEnabled}>الدفع عبر ميسر {s.moyasarEnabled ? "مفعّل" : "متوقف"} من إعدادات المتجر</Check>
+            {mode === "live" || moyasarProxyConfigured() ? (
+              <Check ok={moyasarProxyConfigured() && !moyasarIpBlocked}>
+                عنوان IP ثابت للاتصال بميسر <code dir="ltr" className="rounded bg-paper-deep px-1.5 py-0.5 text-xs">MOYASAR_PROXY_URL</code>{" "}
+                {moyasarProxyConfigured() ? "مضبوط" : "غير مضبوط"}
+              </Check>
+            ) : null}
             <Check ok={moyasarWebhook === "verified"}>
               إشعارات الدفع (Webhook):{" "}
               {moyasarWebhook === "verified"
@@ -191,6 +199,12 @@ export default async function AdminSettingsPage() {
                       : "تحتاج المفاتيح أولًا"}
             </Check>
           </ul>
+          {moyasarIpBlocked ? (
+            <p className="mt-4 rounded-xl bg-coral/10 px-3.5 py-2.5 text-sm font-medium leading-7 text-coral">
+              ميسر رفض الاتصال لأن عنوان IP الخادم غير مضاف في «عناوين IP المسموحة» للمفتاح السري. المفاتيح الحيّة تحتاج عنوانًا ثابتًا: اضبط{" "}
+              <code dir="ltr">MOYASAR_PROXY_URL</code> بوسيط ذي عنوان ثابت وأضف عنوانه في لوحة ميسر.
+            </p>
+          ) : null}
           {hasMoyasar && moyasarWebhook !== "verified" ? (
             <ActionForm action={connectMoyasarWebhookAction} className="mt-4">
               <SubmitButton variant="dark" size="sm">
