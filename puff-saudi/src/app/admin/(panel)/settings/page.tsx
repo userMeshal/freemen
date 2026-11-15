@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { admins } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
 import { edfapayConfigured, getSettings, moyasarKeysPresent, siteUrl } from "@/lib/settings";
-import { listWebhooks, MoyasarIpNotAllowedError, moyasarMode, moyasarProxyConfigured } from "@/lib/moyasar";
+import { listWebhooks, MoyasarIpNotAllowedError, moyasarMode, moyasarOutboundIp, moyasarProxyConfigured } from "@/lib/moyasar";
 import { fmtDate, halalasToInput } from "@/lib/admin-utils";
 import { Badge, Card, Checkbox, Field, Input, PageHeader, Textarea } from "@/components/admin/ui";
 import { ActionForm, ConfirmButton, CopyField, SubmitButton } from "@/components/admin/client";
@@ -53,6 +53,8 @@ export default async function AdminSettingsPage() {
       moyasarIpBlocked = e instanceof MoyasarIpNotAllowedError;
     }
   }
+  // عند رفض العنوان (أو مع المفاتيح الحيّة) نعرض العنوان الذي يخرج منه الاتصال فعلًا لمطابقته مع قائمة ميسر
+  const outboundIp = hasMoyasar && (moyasarIpBlocked || mode === "live") ? await moyasarOutboundIp() : null;
   const noPayment = !s.codEnabled && !(s.edfapayEnabled && hasKey) && !(s.moyasarEnabled && hasMoyasar);
 
   return (
@@ -204,6 +206,17 @@ export default async function AdminSettingsPage() {
               ميسر رفض الاتصال لأن عنوان IP الخادم غير مضاف في «عناوين IP المسموحة» للمفتاح السري. المفاتيح الحيّة تحتاج عنوانًا ثابتًا: اضبط{" "}
               <code dir="ltr">MOYASAR_PROXY_URL</code> بوسيط ذي عنوان ثابت وأضف عنوانه في لوحة ميسر.
             </p>
+          ) : null}
+          {outboundIp ? (
+            <p className="mt-3 text-sm">
+              العنوان الذي يخرج منه الاتصال بميسر الآن:{" "}
+              <code dir="ltr" className="rounded bg-paper-deep px-2 py-1 font-semibold">
+                {outboundIp}
+              </code>{" "}
+              <span className="text-xs text-ink-mute">— يجب أن يكون ضمن «عناوين IP المسموحة» في لوحة ميسر (البيئة الفعلية).</span>
+            </p>
+          ) : hasMoyasar && (moyasarIpBlocked || mode === "live") ? (
+            <p className="mt-3 text-sm text-coral">تعذّر معرفة عنوان الخروج — تحقق من صحة رابط الوسيط (اسم المستخدم وكلمة المرور).</p>
           ) : null}
           {hasMoyasar && moyasarWebhook !== "verified" ? (
             <ActionForm action={connectMoyasarWebhookAction} className="mt-4">
