@@ -64,6 +64,35 @@ async function send(url: string, init: { method: string; headers: Record<string,
   }
 }
 
+/**
+ * العنوان العام الذي تخرج منه طلبات الخادم إلى ميسر الآن (عبر الوسيط إن كان مضبوطًا).
+ * يُعرض في لوحة التحكم ليُقارَن بقائمة «عناوين IP المسموحة» في ميسر.
+ */
+export async function moyasarOutboundIp(): Promise<string | null> {
+  try {
+    const proxy = (process.env.MOYASAR_PROXY_URL || "").trim();
+    let text: string;
+    if (proxy) {
+      const { fetch: proxiedFetch, ProxyAgent } = await import("undici");
+      const dispatcher = new ProxyAgent(proxy);
+      try {
+        const res = await proxiedFetch("https://checkip.amazonaws.com", { dispatcher, signal: AbortSignal.timeout(12_000) });
+        text = await res.text();
+      } finally {
+        void dispatcher.close().catch(() => {});
+      }
+    } else {
+      const res = await fetch("https://checkip.amazonaws.com", { cache: "no-store", signal: AbortSignal.timeout(8_000) });
+      text = await res.text();
+    }
+    const ip = text.trim();
+    return /^[0-9a-f.:]{7,45}$/i.test(ip) ? ip : null;
+  } catch (e) {
+    console.error("[moyasar] outbound ip check failed", e);
+    return null;
+  }
+}
+
 async function api<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
   const res = await send(`${BASE()}${path}`, {
     method: init.method ?? "GET",
