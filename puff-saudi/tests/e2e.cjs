@@ -348,6 +348,15 @@ async function fillCheckout(page, { phone = "0551234567", email = "buyer@example
   await d.waitForTimeout(2000);
   check("ميسر: بطاقة مرفوضة تعرض صفحة فشل الدفع", (await d.locator("body").innerText()).includes("لم تكتمل عملية الدفع"));
   check("ميسر: حالة الدفع «failed»", (await sql`select payment_status from orders where id=${mo.id}`)[0].payment_status === "failed");
+  // اللوحة: الطلب غير المدفوع لا يظهر في «الطلبات» بل في «سلات متروكة»
+  await admin.goto(`${BASE}/admin/orders`);
+  check("اللوحة: طلب لم يُدفع لا يظهر في قائمة الطلبات", !(await admin.locator("table").innerText()).includes(mNum));
+  await admin.goto(`${BASE}/admin/orders?view=abandoned`);
+  const abandonedRow = admin.locator("tr", { hasText: mNum });
+  check("اللوحة: الطلب يظهر في «سلات متروكة»", (await abandonedRow.count()) === 1);
+  check("اللوحة: رابط واتساب للعميل في السلة المتروكة", (await abandonedRow.locator('a[href="https://wa.me/966541110001"]').count()) === 1);
+  await admin.goto(`${BASE}/admin/orders?view=all`);
+  check("اللوحة: تبويب «الكل» يعرض الطلب أيضًا", (await admin.locator("table").innerText()).includes(mNum));
   // إعادة المحاولة ببطاقة مقبولة
   await d.getByRole("button", { name: /إعادة محاولة الدفع/ }).click();
   await d.waitForURL(/\/checkout\/pay\/PF\d+/, { timeout: 20000 });
@@ -357,6 +366,10 @@ async function fillCheckout(page, { phone = "0551234567", email = "buyer@example
   mo = (await sql`select * from orders where id=${mo.id}`)[0];
   check("ميسر: الدفع مؤكَّد عند العودة — «paid» و«processing»", mo.payment_status === "paid" && mo.status === "processing", JSON.stringify([mo.payment_status, mo.status]));
   check("ميسر: رقم العملية محفوظ", /^[0-9a-f-]{36}$/.test(mo.gateway_transaction_id || ""));
+  await admin.goto(`${BASE}/admin/orders`);
+  check("اللوحة: بعد الدفع ينتقل الطلب إلى قائمة الطلبات", (await admin.locator("table").innerText()).includes(mNum));
+  await admin.goto(`${BASE}/admin/orders?view=abandoned`);
+  check("اللوحة: ويخرج من «سلات متروكة»", (await admin.locator("tr", { hasText: mNum }).count()) === 0);
   check("ميسر: الإجمالي 174 + 25 = 199 ر.س", mo.total === 19900, String(mo.total));
 
   // طلب ثانٍ: محاولة اعتماده بعملية تخص طلبًا آخر يجب أن تفشل

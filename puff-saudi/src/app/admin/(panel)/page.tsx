@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { customers, orders, products, variants } from "@/db/schema";
 import { cancelStaleUnpaidOrders, ORDER_STATUS_LABEL, PAYMENT_STATUS_LABEL } from "@/lib/orders";
 import { formatAmount, formatSar } from "@/lib/money";
-import { fmtDateTime, ORDER_STATUS_TONE, PAYMENT_STATUS_TONE, REVENUE_SQL } from "@/lib/admin-utils";
+import { CONFIRMED_ORDER_SQL, fmtDateTime, ORDER_STATUS_TONE, PAYMENT_STATUS_TONE, REVENUE_SQL } from "@/lib/admin-utils";
 import { Badge, Card, EmptyState, LinkButton, PageHeader, Stat, Table, Td, Th } from "@/components/admin/ui";
 
 export const metadata = { title: "الرئيسية" };
@@ -28,7 +28,7 @@ export default async function AdminDashboardPage() {
         coalesce(sum(total) filter (where ${revenue}
           and created_at >= (date_trunc('day', now() at time zone 'Asia/Riyadh') at time zone 'Asia/Riyadh')), 0)::bigint as today,
         coalesce(sum(total) filter (where ${revenue} and created_at >= now() - interval '30 days'), 0)::bigint as last30,
-        count(*) filter (where status <> 'cancelled')::bigint as orders_count,
+        count(*) filter (where status <> 'cancelled' and ${dsql.raw(CONFIRMED_ORDER_SQL)})::bigint as orders_count,
         count(*) filter (where ${revenue})::bigint as revenue_orders,
         coalesce(sum(total) filter (where ${revenue}), 0)::bigint as revenue_total,
         count(*) filter (where status in ('pending', 'processing')
@@ -38,7 +38,8 @@ export default async function AdminDashboardPage() {
     db.execute(dsql`
       select to_char(d.day, 'YYYY-MM-DD') as day,
         coalesce(sum(o.total) filter (where ${dsql.raw(REVENUE_SQL.replace(/\b(status|payment_status|payment_method)\b/g, "o.$1"))}), 0)::bigint as total,
-        count(o.id) filter (where o.status <> 'cancelled')::int as orders
+        count(o.id) filter (where o.status <> 'cancelled'
+          and ${dsql.raw(CONFIRMED_ORDER_SQL.replace(/\b(payment_status|payment_method)\b/g, "o.$1"))})::int as orders
       from generate_series(
         date_trunc('day', now() at time zone 'Asia/Riyadh') - interval '13 days',
         date_trunc('day', now() at time zone 'Asia/Riyadh'),
@@ -49,7 +50,7 @@ export default async function AdminDashboardPage() {
       group by d.day
       order by d.day
     `),
-    db.select().from(orders).orderBy(desc(orders.createdAt)).limit(8),
+    db.select().from(orders).where(dsql.raw(CONFIRMED_ORDER_SQL)).orderBy(desc(orders.createdAt)).limit(8),
     db
       .select({
         id: variants.id,
@@ -98,7 +99,7 @@ export default async function AdminDashboardPage() {
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <Stat label="مبيعات اليوم" value={formatSar(today)} />
         <Stat label="مبيعات آخر 30 يومًا" value={formatSar(last30)} />
-        <Stat label="عدد الطلبات" value={ordersCount.toLocaleString("en-US")} hint="غير الملغاة" />
+        <Stat label="عدد الطلبات" value={ordersCount.toLocaleString("en-US")} hint="المؤكدة غير الملغاة" />
         <Stat label="طلبات بانتظار التجهيز" value={toProcess.toLocaleString("en-US")} />
         <Stat label="متوسط قيمة الطلب" value={formatSar(aov)} />
         <Stat label="عدد العملاء" value={(customerCount[0]?.c ?? 0).toLocaleString("en-US")} />

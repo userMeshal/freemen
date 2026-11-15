@@ -160,3 +160,10 @@ export const PAYMENT_STATUS_TONE: Record<string, "neutral" | "amber" | "blue" | 
 
 /** شرط الإيراد المعتمد في التقارير: طلب غير ملغي، مدفوع أو دفع عند الاستلام غير مُسترد */
 export const REVENUE_SQL = `status <> 'cancelled' and (payment_status = 'paid' or (payment_method = 'cod' and payment_status <> 'refunded'))`;
+
+/**
+ * الطلب «المؤكَّد»: دفع عند الاستلام، أو دفع إلكتروني اكتمل (ولو استُرد لاحقًا).
+ * ما عداه طلب دفع إلكتروني لم يكتمل دفعه — يُعرض في «سلات متروكة» لا في قائمة الطلبات.
+ */
+export const CONFIRMED_ORDER_SQL = "(payment_method = 'cod' or payment_status in ('paid', 'refunded'))";
+export const ABANDONED_ORDER_SQL = "(payment_method <> 'cod' and payment_status in ('unpaid', 'failed'))";
