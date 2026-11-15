@@ -1,6 +1,6 @@
 import "server-only";
 import { revalidateTag } from "next/cache";
-import { queueOrderNotification } from "@/lib/telegram";
+import { queueOrderNotification } from "@/lib/notify";
 import { and, eq, inArray, lt, sql as dsql } from "drizzle-orm";
 import { db } from "@/db";
 import {

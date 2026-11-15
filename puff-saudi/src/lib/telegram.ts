@@ -1,9 +1,8 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
-import { after } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { orderItems, orders, settings } from "@/db/schema";
+import { settings, type orderItems, type orders } from "@/db/schema";
 import { formatSar } from "@/lib/money";
 import { displayPhone } from "@/lib/normalize";
 import { siteUrl } from "@/lib/settings";
@@ -145,42 +144,29 @@ export async function sendTelegramTest(): Promise<number> {
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-/** إشعار «طلب جديد» — يُستدعى عند تأكيد الدفع الإلكتروني أو إنشاء طلب دفع عند الاستلام. لا يرمي أخطاء. */
-export async function notifyNewOrder(orderId: number): Promise<void> {
-  try {
-    const config = await readTelegram();
-    if (!config?.chats.length) return;
-    const [order] = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
-    if (!order) return;
-    const items = await db.select().from(orderItems).where(eq(orderItems.orderId, orderId));
-    const lines = items.slice(0, 12).map((i) => `• ${i.qty} × ${esc(i.name)}${i.optionValue ? ` (${esc(i.optionValue)})` : ""}`);
-    if (items.length > 12) lines.push(`• و${items.length - 12} منتجات أخرى`);
-    const address = order.address as { city?: string } | null;
-    const text = [
-      `🛍 <b>طلب جديد ${esc(order.number)}</b>`,
-      `المبلغ: <b>${esc(formatSar(order.total))}</b>`,
-      order.paymentMethod === "cod" ? "الدفع: عند الاستلام" : "الدفع: مدفوع إلكترونيًا ✅",
-      "",
-      `العميل: ${esc(order.customerName)} — ${esc(displayPhone(order.customerPhone))}`,
-      address?.city ? `المدينة: ${esc(address.city)}` : null,
-      "",
-      ...lines,
-      "",
-      `<a href="${siteUrl()}/admin/orders/${order.id}">فتح الطلب في لوحة التحكم</a>`,
-    ]
-      .filter((l) => l !== null)
-      .join("\n");
-    await broadcast(config, text);
-  } catch (e) {
-    console.error("[telegram] order notification failed", e);
-  }
-}
+type OrderRow = typeof orders.$inferSelect;
+type OrderItemRow = typeof orderItems.$inferSelect;
 
-/** يرسل الإشعار بعد انتهاء الرد على العميل حتى لا يتأخر عليه شيء */
-export function queueOrderNotification(orderId: number) {
-  try {
-    after(() => notifyNewOrder(orderId));
-  } catch {
-    void notifyNewOrder(orderId);
-  }
+/** إشعار «طلب جديد» على تيليجرام — يُستدعى من lib/notify.ts */
+export async function sendTelegramOrder(order: OrderRow, items: OrderItemRow[]): Promise<void> {
+  const config = await readTelegram();
+  if (!config?.chats.length) return;
+  const lines = items.slice(0, 12).map((i) => `• ${i.qty} × ${esc(i.name)}${i.optionValue ? ` (${esc(i.optionValue)})` : ""}`);
+  if (items.length > 12) lines.push(`• و${items.length - 12} منتجات أخرى`);
+  const address = order.address as { city?: string } | null;
+  const text = [
+    `🛍 <b>طلب جديد ${esc(order.number)}</b>`,
+    `المبلغ: <b>${esc(formatSar(order.total))}</b>`,
+    order.paymentMethod === "cod" ? "الدفع: عند الاستلام" : "الدفع: مدفوع إلكترونيًا ✅",
+    "",
+    `العميل: ${esc(order.customerName)} — ${esc(displayPhone(order.customerPhone))}`,
+    address?.city ? `المدينة: ${esc(address.city)}` : null,
+    "",
+    ...lines,
+    "",
+    `<a href="${siteUrl()}/admin/orders/${order.id}">فتح الطلب في لوحة التحكم</a>`,
+  ]
+    .filter((l) => l !== null)
+    .join("\n");
+  await broadcast(config, text);
 }

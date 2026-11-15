@@ -1,6 +1,6 @@
 "use server";
 
-import { queueOrderNotification } from "@/lib/telegram";
+import { queueOrderNotification } from "@/lib/notify";
 import { z } from "zod";
 import { and, eq, sql as dsql } from "drizzle-orm";
 import { db } from "@/db";

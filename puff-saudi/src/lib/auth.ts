@@ -6,7 +6,8 @@ import { db } from "@/db";
 import { admins, customers } from "@/db/schema";
 import { ADMIN_COOKIE, CUSTOMER_COOKIE, signSession, verifySession, type SessionKind } from "./session";
 
-const ADMIN_MAX_AGE = 60 * 60 * 12; // 12 ساعة
+// 30 يومًا: اللوحة تُستعمل كتطبيق على جوال التاجر، وإعادة الدخول مرتين يوميًا تعطّل فتح الطلب من الإشعار
+const ADMIN_MAX_AGE = 60 * 60 * 24 * 30;
 const CUSTOMER_MAX_AGE = 60 * 60 * 24 * 30; // 30 يومًا
 
 async function setCookie(kind: SessionKind, id: number, name: string) {

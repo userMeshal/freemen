@@ -9,6 +9,7 @@ export const metadata: Metadata = {
   description:
     "متجر بف السعودية: أكواب بف سيبي، بف كوفي، وبف فليبي بعزل يحافظ على برودة وحرارة مشروبك لساعات، بعشرات الألوان والإصدارات الخاصة.",
   applicationName: "PUFF SAUDI",
+  manifest: "/manifest.webmanifest",
   openGraph: {
     type: "website",
     locale: "ar_SA",
