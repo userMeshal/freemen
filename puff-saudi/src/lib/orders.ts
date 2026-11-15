@@ -1,5 +1,6 @@
 import "server-only";
 import { revalidateTag } from "next/cache";
+import { queueOrderNotification } from "@/lib/telegram";
 import { and, eq, inArray, lt, sql as dsql } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -281,6 +282,7 @@ export async function markOrderPaid(orderId: number, transactionId: string | nul
     amount: res[0].total,
     raw: raw as object,
   });
+  queueOrderNotification(orderId);
   return true;
 }
 
