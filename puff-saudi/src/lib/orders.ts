@@ -34,7 +34,7 @@ export const PAYMENT_STATUS_LABEL = {
 } as const;
 
 export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
-  moyasar: "دفع إلكتروني عبر ميسر (مدى / بطاقة / Apple Pay)",
+  moyasar: "دفع إلكتروني (مدى / بطاقة / Apple Pay)",
   edfapay: "دفع إلكتروني (مدى / بطاقة / Apple Pay)",
   cod: "الدفع عند الاستلام",
 };

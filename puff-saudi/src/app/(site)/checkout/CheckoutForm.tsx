@@ -319,8 +319,8 @@ export function CheckoutForm({ prefill }: { prefill: Prefill }) {
                     </span>
                     <span className="mt-2 block text-xs text-ink-mute">
                       {online === "moyasar"
-                        ? "تُدخل بيانات البطاقة في الخطوة التالية عبر نموذج ميسر الآمن."
-                        : "ستنتقل إلى صفحة الدفع الآمنة لدى EdfaPay لإتمام العملية."}
+                        ? "تُدخل بيانات البطاقة في الخطوة التالية عبر صفحة الدفع الآمنة من PUFF."
+                        : "ستنتقل إلى صفحة الدفع الآمنة لإتمام العملية."}
                     </span>
                   </span>
                 </label>

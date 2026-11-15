@@ -86,7 +86,7 @@ export function MoyasarForm({
   return (
     <div>
       <p className="mb-5 flex items-center gap-2 text-sm text-ink-mute">
-        <Lock size={15} /> دفع آمن عبر ميسر — بيانات بطاقتك لا تُحفظ في المتجر
+        <Lock size={15} /> دفع آمن عبر PUFF — بيانات بطاقتك لا تُحفظ في المتجر
       </p>
       {error && (
         <p role="alert" className="mb-4 rounded-2xl bg-coral/15 px-4 py-3 text-sm text-[#a3200a]">
