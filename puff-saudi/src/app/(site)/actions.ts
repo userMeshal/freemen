@@ -13,7 +13,7 @@ const quoteSchema = z.object({
   items: itemsSchema,
   couponCode: z.string().trim().max(40).nullish(),
   shippingMethodId: z.number().int().positive().nullish(),
-  paymentMethod: z.enum(["edfapay", "cod"]).nullish(),
+  paymentMethod: z.enum(["moyasar", "edfapay", "cod"]).nullish(),
 });
 
 export async function quoteCartAction(input: z.input<typeof quoteSchema>): Promise<CartQuote> {

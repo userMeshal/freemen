@@ -7,7 +7,8 @@ import { db } from "@/db";
 import { admins } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
 import { hashPassword, verifyPassword } from "@/lib/password";
-import { saveSettings } from "@/lib/settings";
+import { edfapayConfigured, moyasarKeysPresent, saveSettings, siteUrl } from "@/lib/settings";
+import { createWebhook, listWebhooks, resendWebhookVerification } from "@/lib/moyasar";
 import { toLatinDigits } from "@/lib/normalize";
 import { bool, fail, firstError, ok, sarToHalalas, str, type ActionState } from "@/lib/admin-utils";
 
@@ -84,13 +85,54 @@ export async function savePaymentAction(_prev: ActionState, fd: FormData): Promi
   const codFee = sarToHalalas(str(fd, "codFee")) ?? 0;
   if (Number.isNaN(codFee) || codFee > 100_000) return fail("رسوم الدفع عند الاستلام غير صالحة");
   const edfapayEnabled = bool(fd, "edfapayEnabled");
+  const moyasarEnabled = bool(fd, "moyasarEnabled");
   const codEnabled = bool(fd, "codEnabled");
-  await saveSettings({ edfapayEnabled, codEnabled, codFee });
+  const applePayDomainFile = String(fd.get("applePayDomainFile") ?? "").trim();
+  if (applePayDomainFile.length > 20_000) return fail("ملف التحقق من Apple Pay أكبر من المتوقع");
+  await saveSettings({
+    edfapayEnabled,
+    moyasarEnabled,
+    moyasarApplePay: bool(fd, "moyasarApplePay"),
+    moyasarStcPay: bool(fd, "moyasarStcPay"),
+    applePayDomainFile,
+    codEnabled,
+    codFee,
+  });
   refresh();
-  if (!codEnabled && !(edfapayEnabled && process.env.EDFAPAY_API_KEY)) {
-    return ok("تم الحفظ — تنبيه: لا توجد وسيلة دفع متاحة للعملاء الآن (فعّل الدفع عند الاستلام أو أضف مفتاح EdfaPay).");
+  const online = (moyasarEnabled && moyasarKeysPresent()) || (edfapayEnabled && edfapayConfigured());
+  if (!codEnabled && !online) {
+    return ok("تم الحفظ — تنبيه: لا توجد وسيلة دفع متاحة للعملاء الآن (فعّل الدفع عند الاستلام أو أضف مفاتيح بوابة الدفع).");
   }
   return ok("تم حفظ إعدادات الدفع");
+}
+
+/** يسجّل رابط الإشعارات (Webhook) في حساب ميسر تلقائيًا؛ رمز التفعيل يُرسَل للرابط نفسه ويُؤكَّد آليًا */
+export async function connectMoyasarWebhookAction(_prev: ActionState, _fd: FormData): Promise<ActionState> {
+  await requireAdmin();
+  if (!moyasarKeysPresent()) return fail("أضف مفاتيح ميسر في متغيرات البيئة أولًا ثم أعد النشر");
+  const url = `${siteUrl()}/api/webhooks/moyasar`;
+  // ميسر يشترط https؛ نستثني localhost للاختبار المحلي فقط
+  if (!url.startsWith("https://") && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//.test(url)) {
+    return fail("رابط الموقع يجب أن يبدأ بـ https حتى يقبله ميسر");
+  }
+  try {
+    const existing = (await listWebhooks()).find((w) => w.url === url);
+    if (existing?.verified) {
+      refresh();
+      return ok("الإشعارات مربوطة ومفعّلة مسبقًا");
+    }
+    if (existing) {
+      await resendWebhookVerification(existing.id);
+      refresh();
+      return ok("أُعيد إرسال رمز التفعيل — حدّث الصفحة بعد لحظات للتأكد");
+    }
+    const created = await createWebhook(url);
+    refresh();
+    return ok(created.verified ? "تم ربط إشعارات ميسر وتفعيلها" : "تم تسجيل الإشعارات — يجري تفعيلها تلقائيًا، حدّث الصفحة بعد لحظات");
+  } catch (e) {
+    console.error("[moyasar] connect webhook failed", e);
+    return fail("تعذّر ربط الإشعارات مع ميسر. تأكد من صحة المفتاح السري ثم أعد المحاولة.");
+  }
 }
 
 const passwordRule = z.string().min(10, "كلمة المرور يجب ألا تقل عن 10 أحرف").max(200, "كلمة المرور طويلة جدًا");

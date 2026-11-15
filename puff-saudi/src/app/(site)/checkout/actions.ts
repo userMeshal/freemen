@@ -9,7 +9,9 @@ import { rateLimit } from "@/lib/rate-limit";
 import { normalizeSaudiPhone, normalizeShortAddress, toLatinDigits } from "@/lib/normalize";
 import { CheckoutError, createOrder } from "@/lib/orders";
 import { edfapayInitiate } from "@/lib/edfapay";
-import { edfapayConfigured, siteUrl } from "@/lib/settings";
+import { createPaymentIntent, isUuid } from "@/lib/moyasar";
+import { confirmMoyasarPayment, latestMoyasarPaymentId } from "@/lib/moyasar-orders";
+import { edfapayConfigured, getSettings, moyasarKeysPresent, onlineProvider, siteUrl } from "@/lib/settings";
 
 const text = (min: number, max: number) =>
   z
@@ -24,7 +26,7 @@ const checkoutSchema = z.object({
   expectedTotal: z.number().int().nonnegative(),
   couponCode: z.string().trim().max(40).nullish(),
   shippingMethodId: z.number().int().positive(),
-  paymentMethod: z.enum(["edfapay", "cod"]),
+  paymentMethod: z.enum(["moyasar", "edfapay", "cod"]),
   name: text(3, 80),
   phone: z.string().trim().max(30),
   email: z.string().trim().toLowerCase().max(120).pipe(z.email()),
@@ -122,8 +124,8 @@ export async function placeOrderAction(input: CheckoutInput): Promise<CheckoutRe
       },
     };
   }
-  if (data.paymentMethod === "edfapay" && !edfapayConfigured()) {
-    return { ok: false, error: "الدفع الإلكتروني غير متاح حاليًا.", code: "payment" };
+  if (data.paymentMethod !== "cod" && onlineProvider(await getSettings()) !== data.paymentMethod) {
+    return { ok: false, error: "الدفع الإلكتروني غير متاح حاليًا. حدّث الصفحة ثم أعد المحاولة.", code: "payment" };
   }
 
   if (!(await rateLimit(`checkout-phone:${phone}`, 8, 600))) {
@@ -152,6 +154,10 @@ export async function placeOrderAction(input: CheckoutInput): Promise<CheckoutRe
 
   const orderUrl = `/order/${order.number}?t=${order.accessToken}`;
   if (data.paymentMethod === "cod") return { ok: true, redirect: `${orderUrl}&new=1`, external: false };
+  // ميسر: الدفع يتم داخل الموقع في صفحة الدفع الخاصة بالطلب
+  if (data.paymentMethod === "moyasar") {
+    return { ok: true, redirect: `/checkout/pay/${order.number}?t=${order.accessToken}`, external: false };
+  }
 
   try {
     const redirect = await startPayment({ ...order, address: order.address });
@@ -184,6 +190,9 @@ export async function retryPaymentAction(input: { number: string; token: string 
   if (!order) return { ok: false, error: "الطلب غير موجود." };
   if (order.paymentStatus === "paid") return { ok: true, redirect: `/order/${order.number}?t=${order.accessToken}`, external: false };
   if (order.status === "cancelled") return { ok: false, error: "هذا الطلب ملغي. أنشئ طلبًا جديدًا." };
+  if (order.paymentMethod === "moyasar" && moyasarKeysPresent()) {
+    return { ok: true, redirect: `/checkout/pay/${order.number}?t=${order.accessToken}`, external: false };
+  }
   if (order.paymentMethod !== "edfapay" || !edfapayConfigured()) return { ok: false, error: "الدفع الإلكتروني غير متاح لهذا الطلب." };
   try {
     return { ok: true, redirect: await startPayment(order), external: true };
@@ -195,7 +204,66 @@ export async function retryPaymentAction(input: { number: string; token: string 
 
 export async function paymentStatusAction(input: { number: string; token: string }) {
   const { number, token } = refSchema.parse(input);
-  const order = await findOrder(number, token);
+  let order = await findOrder(number, token);
   if (!order) return { found: false as const };
+  // ميسر: لو سجّل المتصفح عملية لهذا الطلب نتحقق منها مباشرة بدل انتظار الـ webhook
+  if (order.paymentMethod === "moyasar" && order.paymentStatus !== "paid" && order.status !== "cancelled" && moyasarKeysPresent()) {
+    const paymentId = await latestMoyasarPaymentId(order.id);
+    if (paymentId) {
+      await confirmMoyasarPayment(order, paymentId).catch((e) => console.error("[moyasar] status check failed", e));
+      order = (await findOrder(number, token)) ?? order;
+    }
+  }
   return { found: true as const, paymentStatus: order.paymentStatus, status: order.status };
+}
+
+/* ───────── ميسر ───────── */
+
+export type MoyasarIntentResult = { ok: true; id: string; clientSecret: string } | { ok: false; error: string };
+
+/** ينشئ Payment Intent بمبلغ الطلب كما هو في قاعدة البيانات — يُستدعى لحظة ضغط العميل زر الدفع */
+export async function createMoyasarIntentAction(input: { number: string; token: string }): Promise<MoyasarIntentResult> {
+  const { number, token } = refSchema.parse(input);
+  if (!(await rateLimit(`moyasar-intent:${number.toUpperCase()}`, 12, 600))) return { ok: false, error: "محاولات كثيرة. انتظر قليلًا ثم أعد المحاولة." };
+  const order = await findOrder(number, token);
+  if (!order || order.paymentMethod !== "moyasar") return { ok: false, error: "الطلب غير موجود." };
+  if (order.paymentStatus === "paid") return { ok: false, error: "هذا الطلب مدفوع مسبقًا." };
+  if (order.status === "cancelled") return { ok: false, error: "هذا الطلب ملغي. أنشئ طلبًا جديدًا." };
+  if (!moyasarKeysPresent()) return { ok: false, error: "الدفع الإلكتروني غير متاح حاليًا." };
+  try {
+    const intent = await createPaymentIntent({
+      amountHalalas: order.total,
+      orderNumber: order.number,
+      callbackUrl: `${siteUrl()}/checkout/return?o=${order.number}&t=${order.accessToken}`,
+    });
+    await db.insert(paymentAttempts).values({
+      orderId: order.id,
+      provider: "moyasar",
+      providerRef: intent.id,
+      status: "initiated",
+      amount: order.total,
+      raw: { intentId: intent.id, expiresAt: intent.expires_at ?? null },
+    });
+    return { ok: true, id: intent.id, clientSecret: intent.client_secret };
+  } catch (e) {
+    console.error("[moyasar] create intent failed", e);
+    return { ok: false, error: "تعذّر الاتصال ببوابة الدفع. حاول بعد قليل أو اختر وسيلة دفع أخرى." };
+  }
+}
+
+/** يحفظ رقم العملية قبل التحويل للتحقق البنكي (3DS) حتى نستطيع التحقق منها لو انقطع اتصال العميل */
+export async function recordMoyasarPaymentAction(input: { number: string; token: string; paymentId: string }) {
+  const { number, token } = refSchema.parse(input);
+  if (!isUuid(input.paymentId)) return { ok: false as const };
+  if (!(await rateLimit(`moyasar-record:${number.toUpperCase()}`, 20, 600))) return { ok: false as const };
+  const order = await findOrder(number, token);
+  if (!order || order.paymentMethod !== "moyasar") return { ok: false as const };
+  await db.insert(paymentAttempts).values({
+    orderId: order.id,
+    provider: "moyasar",
+    providerRef: input.paymentId,
+    status: "created",
+    amount: order.total,
+  });
+  return { ok: true as const };
 }

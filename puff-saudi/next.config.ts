@@ -15,16 +15,16 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' https://connect.facebook.net https://analytics.tiktok.com" +
+      "script-src 'self' 'unsafe-inline' https://connect.facebook.net https://analytics.tiktok.com https://applepay.cdn-apple.com" +
         (process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""),
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https://*.public.blob.vercel-storage.com https://www.facebook.com https://analytics.tiktok.com",
       "font-src 'self' data:",
-      "connect-src 'self' https://www.facebook.com https://connect.facebook.net https://analytics.tiktok.com https://*.tiktokw.us https://*.tiktok.com",
+      "connect-src 'self' https://api.moyasar.com https://www.facebook.com https://connect.facebook.net https://analytics.tiktok.com https://*.tiktokw.us https://*.tiktok.com",
       "frame-src https://www.facebook.com",
       "frame-ancestors 'none'",
       "base-uri 'self'",
-      "form-action 'self' https://*.edfapay.com",
+      "form-action 'self' https://*.edfapay.com https://api.moyasar.com",
       "object-src 'none'",
     ].join("; "),
   },

@@ -40,6 +40,8 @@ npm run dev                     # http://localhost:3000  — اللوحة: /admi
 | `AUTH_SECRET` | نص عشوائي 32 حرفًا على الأقل: `openssl rand -base64 48` |
 | `NEXT_PUBLIC_SITE_URL` | رابط الموقع النهائي بدون `/` في الآخر |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | حساب المدير الأول (كلمة المرور 10 أحرف على الأقل). يُنشأ مرة واحدة عند أول `db:seed` |
+| `MOYASAR_PUBLISHABLE_KEY` / `MOYASAR_SECRET_KEY` | مفاتيح ميسر (اختبار أو حيّة) |
+| `MOYASAR_PROXY_URL` | (للمفاتيح الحيّة على Vercel) وسيط بعنوان IP ثابت: `http://USER:PASSWORD@HOST:PORT` |
 | `EDFAPAY_ENV` | `sandbox` أو `production` |
 | `EDFAPAY_API_KEY` | مفتاح API من لوحة EdfaPay |
 | `EDFAPAY_WEBHOOK_SECRET` | السر الذي تضعه في لوحة EdfaPay ← Configuration ← Webhook |
@@ -56,6 +58,26 @@ npm run dev                     # http://localhost:3000  — اللوحة: /admi
 
 > ربط الدومين `puffsaudi.cc` بالمشروع الجديد خطوة منفصلة تتم يدويًا من Vercel → Domains عندما تقرر الانتقال. المتجر القديم لا يتأثر بأي شيء هنا.
 
+## ربط ميسر (Moyasar)
+
+الدفع يتم داخل الموقع بنموذج ميسر الرسمي (`moyasar-payment-form`) مع Payment Intents: الخادم يقفل المبلغ والوصف، وبيانات البطاقة تذهب من المتصفح إلى ميسر مباشرة.
+
+1. في Vercel ← المشروع ← Settings ← Environment Variables أضف:
+   - `MOYASAR_PUBLISHABLE_KEY` = المفتاح العام (`pk_test_…` أو `pk_live_…`)
+   - `MOYASAR_SECRET_KEY` = المفتاح السري (`sk_test_…` أو `sk_live_…`) — اجعله Sensitive
+2. أعد النشر (Deployments ← Redeploy).
+3. من لوحة التحكم ← الإعدادات ← «حالة ربط ميسر» اضغط **ربط إشعارات ميسر تلقائيًا** (يسجّل الـ webhook ويؤكد رمز التفعيل آليًا).
+4. Apple Pay (اختياري): في لوحة ميسر ← Apple Pay Domains أضف الدومين ونزّل ملف التحقق، الصق محتواه في الإعدادات ← وسائل الدفع واحفظ، اضغط Validate ثم Register في لوحة ميسر، ثم فعّل «إظهار Apple Pay».
+
+### المفاتيح الحيّة تحتاج عنوان IP ثابتًا
+
+ميسر يقبل المفتاح السري الحيّ (`sk_live_…`) من «عناوين IP المسموحة» فقط، وVercel لا يعطي عنوانًا ثابتًا افتراضيًا. مفاتيح الاختبار تعمل من أي عنوان.
+
+- **وسيط بعنوان ثابت:** اشترك في خدمة Static IP proxy، أضف العنوانين اللذين تعطيك إياهما في لوحة ميسر ← API Keys ← عناوين IP المسموحة، ثم أضف في Vercel المتغير `MOYASAR_PROXY_URL` بصيغة `http://USER:PASSWORD@HOST:PORT`. طلبات الخادم إلى ميسر فقط تمر عبره (نفق HTTPS، الوسيط لا يرى المحتوى).
+- **أو Static IPs من Vercel** (خطة Pro): لا يحتاج أي متغير؛ أضف عناوين Vercel الثابتة في لوحة ميسر.
+
+ميسر له الأولوية على EdfaPay عندما تكون مفاتيحه مضبوطة ومفعّلًا من الإعدادات. التحقق من كل عملية يتم من API ميسر بالمفتاح السري (الحالة + المبلغ + رقم الطلب) عند عودة العميل، والـ webhook احتياط لمن يغلق المتصفح.
+
 ## ربط EdfaPay
 
 1. ضع `EDFAPAY_API_KEY` و `EDFAPAY_ENV` (ابدأ بـ `sandbox`).
@@ -67,13 +89,15 @@ npm run dev                     # http://localhost:3000  — اللوحة: /admi
 ## الاختبار
 
 ```bash
-node tests/mock-edfapay.mjs &                        # بوابة دفع وهمية محلية
-EDFAPAY_API_KEY=test-key EDFAPAY_BASE_URL=http://127.0.0.1:4010/api/v1 \
-EDFAPAY_WEBHOOK_SECRET=whsec_test npm run dev        # أو: npm run build && npm start
+node tests/mock-edfapay.mjs &                        # بوابة EdfaPay وهمية (4010)
+node tests/mock-moyasar.mjs &                        # بوابة ميسر وهمية (4011)
+EDFAPAY_API_KEY=test-key EDFAPAY_BASE_URL=http://127.0.0.1:4010/api/v1 EDFAPAY_WEBHOOK_SECRET=whsec_test \
+MOYASAR_PUBLISHABLE_KEY=pk_test_mock MOYASAR_SECRET_KEY=sk_test_mock MOYASAR_BASE_URL=http://127.0.0.1:4011/v1 \
+npm run dev                                          # أو: npm run build && npm start
 node tests/e2e.cjs                                   # يحتاج Playwright
 ```
 
-الاختبار يغطي 59 فحصًا: دخول المدير، الإعدادات، الكوبونات، المخزون، التصفح على الجوال، السلة، حساب الإجماليات، الدفع عند الاستلام، الدفع الإلكتروني (رفض ← إعادة محاولة ← قبول)، رفض الـ webhook المزوّر، التتبع، حساب العميل، وإلغاء الطلب مع إعادة المخزون.
+الاختبار يغطي 73 فحصًا: دخول المدير، الإعدادات، الكوبونات، المخزون، التصفح على الجوال، السلة، حساب الإجماليات، الدفع عند الاستلام، الدفع الإلكتروني (رفض ← إعادة محاولة ← قبول)، رفض الـ webhook المزوّر، التتبع، حساب العميل، وإلغاء الطلب مع إعادة المخزون.
 
 ## بنية المشروع
 

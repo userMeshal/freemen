@@ -9,7 +9,7 @@ import type { CartQuote } from "@/lib/types";
  * تسعير السلة من الخادم (المصدر الوحيد للأسعار والخصومات والشحن).
  * يعيد الحساب عند تغيّر البنود أو الكوبون أو الشحن أو طريقة الدفع، ويزامن السلة المحلية مع النتيجة.
  */
-export function useCartQuote(opts: { shippingMethodId?: number | null; paymentMethod?: "edfapay" | "cod" | null } = {}) {
+export function useCartQuote(opts: { shippingMethodId?: number | null; paymentMethod?: "moyasar" | "edfapay" | "cod" | null } = {}) {
   const items = useCart((s) => s.items);
   const coupon = useCart((s) => s.coupon);
   const hydrated = useCart((s) => s.hydrated);

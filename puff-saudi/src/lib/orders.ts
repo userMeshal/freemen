@@ -34,6 +34,7 @@ export const PAYMENT_STATUS_LABEL = {
 } as const;
 
 export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
+  moyasar: "دفع إلكتروني (مدى / بطاقة / Apple Pay)",
   edfapay: "دفع إلكتروني (مدى / بطاقة / Apple Pay)",
   cod: "الدفع عند الاستلام",
 };
@@ -82,7 +83,7 @@ export async function createOrder(input: CreateOrderInput) {
       throw new CheckoutError("طريقة الشحن المختارة غير متاحة", "shipping");
     if (input.paymentMethod === "cod" && !quote.payment.cod)
       throw new CheckoutError("الدفع عند الاستلام غير متاح حاليًا", "payment");
-    if (input.paymentMethod === "edfapay" && !quote.payment.edfapay)
+    if (input.paymentMethod !== "cod" && quote.payment.online !== input.paymentMethod)
       throw new CheckoutError("الدفع الإلكتروني غير متاح حاليًا", "payment");
     if (quote.total !== input.expectedTotal)
       throw new CheckoutError("تم تحديث الأسعار. راجع الإجمالي ثم أكّد الطلب من جديد.", "changed");
@@ -246,7 +247,7 @@ export async function cancelStaleUnpaidOrders() {
     .from(orders)
     .where(
       and(
-        eq(orders.paymentMethod, "edfapay"),
+        inArray(orders.paymentMethod, ["edfapay", "moyasar"]),
         inArray(orders.paymentStatus, ["unpaid", "failed"]),
         eq(orders.status, "pending"),
         lt(orders.createdAt, cutoff),
@@ -258,7 +259,7 @@ export async function cancelStaleUnpaidOrders() {
 }
 
 /** تأكيد الدفع — آمن للتكرار (webhook قد يصل أكثر من مرة) */
-export async function markOrderPaid(orderId: number, transactionId: string | null, raw: unknown) {
+export async function markOrderPaid(orderId: number, transactionId: string | null, raw: unknown, provider = "edfapay") {
   const res = await db
     .update(orders)
     .set({
@@ -274,7 +275,7 @@ export async function markOrderPaid(orderId: number, transactionId: string | nul
   await db.insert(orderEvents).values({ orderId, type: "paid", note: "تم تأكيد الدفع — جارٍ تجهيز طلبك" });
   await db.insert(paymentAttempts).values({
     orderId,
-    provider: "edfapay",
+    provider,
     providerRef: transactionId,
     status: "approved",
     amount: res[0].total,
@@ -283,7 +284,13 @@ export async function markOrderPaid(orderId: number, transactionId: string | nul
   return true;
 }
 
-export async function markPaymentFailed(orderId: number, transactionId: string | null, reason: string | null, raw: unknown) {
+export async function markPaymentFailed(
+  orderId: number,
+  transactionId: string | null,
+  reason: string | null,
+  raw: unknown,
+  provider = "edfapay",
+) {
   const res = await db
     .update(orders)
     .set({ paymentStatus: "failed", updatedAt: new Date() })
@@ -291,7 +298,7 @@ export async function markPaymentFailed(orderId: number, transactionId: string |
     .returning({ id: orders.id, total: orders.total });
   await db.insert(paymentAttempts).values({
     orderId,
-    provider: "edfapay",
+    provider,
     providerRef: transactionId,
     status: "declined",
     amount: res[0]?.total ?? 0,

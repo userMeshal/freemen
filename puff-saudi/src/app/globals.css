@@ -542,3 +542,19 @@ html.no-preload #preloader {
     transform: scale(1.05);
   }
 }
+
+/* ─────────────────────────────── نموذج ميسر: مواءمة مع هوية المتجر ─────────────────────────────── */
+.mysr-form button[type="submit"] {
+  background: var(--ink) !important;
+  border-radius: 999px !important;
+  min-height: 3.6rem;
+  font-family: var(--font-display);
+  font-weight: 600;
+  transition: transform 0.25s var(--ease-expo), background-color 0.3s;
+}
+.mysr-form button[type="submit"]:active {
+  transform: scale(0.98);
+}
+.mysr-form input {
+  font-size: 16px !important; /* يمنع تكبير iOS */
+}
