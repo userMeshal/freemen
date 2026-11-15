@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BellRing } from "lucide-react";
 import { and, desc, eq, ilike, or, sql as dsql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import { orders, type OrderStatus, type PaymentStatus } from "@/db/schema";
@@ -91,7 +92,11 @@ export default async function AdminOrdersPage({
       <PageHeader
         title={abandoned ? "سلات متروكة" : "الطلبات"}
         subtitle={`${count.toLocaleString("en-US")} ${abandoned ? "سلة" : "طلب"}`}
-      />
+      >
+        <LinkButton href="/admin/settings#notifications">
+          <BellRing className="h-4 w-4" /> إشعارات الطلبات
+        </LinkButton>
+      </PageHeader>
 
       <nav className="mb-4 flex flex-wrap gap-2" aria-label="تبويبات الطلبات">
         {tabs.map((t) => (

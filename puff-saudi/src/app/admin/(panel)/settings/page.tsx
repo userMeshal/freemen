@@ -5,10 +5,12 @@ import { admins } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
 import { edfapayConfigured, getSettings, moyasarKeysPresent, siteUrl } from "@/lib/settings";
 import { listWebhooks, MoyasarIpNotAllowedError, moyasarMode, moyasarOutboundIp, moyasarProxyConfigured } from "@/lib/moyasar";
+import { pushOverview } from "@/lib/push";
 import { readTelegram, telegramLink } from "@/lib/telegram";
 import { fmtDate, halalasToInput } from "@/lib/admin-utils";
 import { Badge, btnCls, Card, Checkbox, Field, Input, PageHeader, Textarea } from "@/components/admin/ui";
 import { ActionForm, ConfirmButton, CopyField, SubmitButton } from "@/components/admin/client";
+import { PushCard } from "@/components/admin/PushCard";
 import {
   addAdminAction,
   changePasswordAction,
@@ -37,10 +39,11 @@ function Check({ ok, children }: { ok: boolean; children: React.ReactNode }) {
 
 export default async function AdminSettingsPage() {
   const me = await requireAdmin();
-  const [s, adminRows, telegram] = await Promise.all([
+  const [s, adminRows, telegram, push] = await Promise.all([
     getSettings(),
     db.select().from(admins).orderBy(asc(admins.id)),
     readTelegram(),
+    pushOverview(),
   ]);
 
   const hasKey = edfapayConfigured();
@@ -273,7 +276,16 @@ export default async function AdminSettingsPage() {
         </Card>
 
         <Card
-          title="إشعارات الطلبات على الجوال (تيليجرام)"
+          title="إشعارات الطلبات على جوالك"
+          className="xl:col-span-2"
+          actions={<Badge tone={push.devices.length ? "green" : "amber"}>{push.devices.length ? `مفعّلة على ${push.devices.length} جهاز` : "غير مفعّلة"}</Badge>}
+        >
+          <div id="notifications" className="scroll-mt-24" />
+          <PushCard publicKey={push.publicKey} devices={push.devices} />
+        </Card>
+
+        <Card
+          title="إشعارات عبر تيليجرام (اختياري)"
           className="xl:col-span-2"
           actions={
             <Badge tone={telegram?.chats.length ? "green" : "amber"}>
@@ -282,8 +294,8 @@ export default async function AdminSettingsPage() {
           }
         >
           <p className="text-sm leading-relaxed text-ink-mute">
-            يصلك إشعار فوري على تيليجرام مع كل طلب مؤكَّد (مدفوع إلكترونيًا أو دفع عند الاستلام): رقم الطلب، المبلغ، العميل، المنتجات ورابط
-            الطلب. الطلبات التي لم يكتمل دفعها لا تُرسَل.
+            بديل أو إضافة للإشعارات المباشرة أعلاه — مناسب لقروب موظفين: رسالة على تيليجرام مع كل طلب مؤكَّد فيها رقم الطلب، المبلغ، العميل،
+            المنتجات ورابط الطلب.
           </p>
 
           {!telegram ? (

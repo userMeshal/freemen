@@ -23,6 +23,35 @@ function check(name, cond, extra = "") {
   }
 }
 
+// خدمة الإشعارات الوهمية (tests/mock-push.mjs): المتجر يرسل لها إشعارات مشفّرة نفكّها هنا بمفتاح «الجهاز»
+const nodeCrypto = require("node:crypto");
+const ece = require("http_ece");
+const PUSH = "http://127.0.0.1:4014";
+const pushKey = nodeCrypto.createECDH("prime256v1");
+pushKey.generateKeys();
+const pushDevice = {
+  endpoint: `${PUSH}/push/admin-phone`,
+  p256dh: pushKey.getPublicKey("base64url"),
+  auth: nodeCrypto.randomBytes(16).toString("base64url"),
+};
+async function pushMessages() {
+  const raw = await (await fetch(`${PUSH}/__received`)).json();
+  return raw.map((r) => ({
+    headers: r.headers,
+    data: JSON.parse(
+      ece.decrypt(Buffer.from(r.body, "base64"), { version: "aes128gcm", privateKey: pushKey, authSecret: pushDevice.auth }).toString("utf8"),
+    ),
+  }));
+}
+async function pushWaitFor(needle) {
+  for (let i = 0; i < 20; i++) {
+    const hit = (await pushMessages()).find((x) => x.data.title.includes(needle));
+    if (hit) return hit;
+    await new Promise((r) => setTimeout(r, 400));
+  }
+  return null;
+}
+
 // خادم تيليجرام الوهمي (tests/mock-telegram.mjs)
 const TG = "http://127.0.0.1:4013";
 const TG_TOKEN = "123456789:AAmockTokenForLocalTestsOnly_0123456789";
@@ -59,6 +88,21 @@ async function fillCheckout(page, { phone = "0551234567", email = "buyer@example
   // ─────────────── 1) لوحة التحكم: دخول + تفعيل الدفع عند الاستلام + كوبون ───────────────
   console.log("\n[1] لوحة التحكم");
   const adminCtx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  await adminCtx.grantPermissions(["notifications"], { origin: new URL(BASE).origin });
+  // متصفح الاختبار لا يتصل بخدمة إشعارات حقيقية: نستبدل الاشتراك باشتراك يشير إلى الخدمة الوهمية
+  await adminCtx.addInitScript((d) => {
+    if (!("PushManager" in window)) return;
+    const fake = {
+      endpoint: d.endpoint,
+      toJSON: () => ({ endpoint: d.endpoint, keys: { p256dh: d.p256dh, auth: d.auth } }),
+      unsubscribe: async () => (localStorage.removeItem("fake-push"), true),
+    };
+    PushManager.prototype.subscribe = async () => (localStorage.setItem("fake-push", "1"), fake);
+    PushManager.prototype.getSubscription = async () => (localStorage.getItem("fake-push") ? fake : null);
+    Notification.requestPermission = async () => "granted";
+    // المتصفح بلا واجهة يبلّغ دائمًا أن الإشعارات «مرفوضة»
+    Object.defineProperty(Notification, "permission", { get: () => "granted" });
+  }, pushDevice);
   const admin = await adminCtx.newPage();
   watch(admin, "admin");
   await admin.goto(`${BASE}/admin`);
@@ -74,11 +118,42 @@ async function fillCheckout(page, { phone = "0551234567", email = "buyer@example
   check("دخول المدير", new URL(admin.url()).pathname === "/admin");
   check("لوحة المعلومات تُعرض", (await admin.locator("body").innerText()).includes("الطلبات"));
 
+  // ─────────────── إشعارات الجوال المباشرة: تطبيق اللوحة + تفعيل الإشعارات ───────────────
+  console.log("\n[إشعارات الجوال] التفعيل");
+  await sql`delete from settings where key = 'webpush'`;
+  const anon = await browser.newContext();
+  const manifestRes = await anon.request.get(`${BASE}/admin-app.webmanifest`);
+  check("التطبيق: ملف التعريف متاح بلا تسجيل دخول", manifestRes.status() === 200 && (await manifestRes.json()).start_url === "/admin/orders");
+  check("التطبيق: ملف الإشعارات والأيقونة متاحان", (await anon.request.get(`${BASE}/admin-sw.js`)).status() === 200 && (await anon.request.get(`${BASE}/admin-icon-192.png`)).status() === 200);
+  const loginHtml = await (await anon.request.get(`${BASE}/admin/login`)).text();
+  check("التطبيق: صفحة الدخول تشير لتطبيق اللوحة لا لتطبيق المتجر", loginHtml.includes('href="/admin-app.webmanifest"') && !loginHtml.includes('href="/manifest.webmanifest"'), (loginHtml.match(/<link rel="manifest"[^>]*>/g) || []).join(" "));
+  const homeHtml = await (await anon.request.get(`${BASE}/`)).text();
+  check("التطبيق: المتجر يحتفظ بتعريفه الخاص", homeHtml.includes('href="/manifest.webmanifest"') && !homeHtml.includes("admin-app.webmanifest"));
+  await anon.close();
+  await admin.goto(`${BASE}/admin/settings`);
+  const pushCard = admin.locator("[data-push-card]");
+  await pushCard.getByRole("button", { name: /تفعيل الإشعارات على هذا الجهاز/ }).click();
+  await pushCard.getByText("الإشعارات مفعّلة على هذا الجهاز").waitFor({ timeout: 15000 });
+  let pushRow = (await sql`select value from settings where key = 'webpush'`)[0].value;
+  check("إشعارات الجوال: الجهاز سُجّل", pushRow.devices.length === 1 && pushRow.devices[0].endpoint === pushDevice.endpoint);
+  check("إشعارات الجوال: الجهاز يظهر في القائمة «هذا الجهاز»", (await pushCard.innerText()).includes("(هذا الجهاز)"));
+  check("إشعارات الجوال: المفتاح الخاص لا يظهر في الصفحة", !(await admin.content()).includes(pushRow.privateKey));
+  // جهاز قديم ألغى اشتراكه: الخدمة ترد 410 فيُحذف تلقائيًا عند أول إرسال
+  pushRow.devices.push({ id: "0".repeat(24), endpoint: `${PUSH}/push/gone-device`, keys: pushRow.devices[0].keys, label: "جهاز قديم", addedAt: new Date().toISOString() });
+  await sql`update settings set value = ${sql.json(pushRow)} where key = 'webpush'`;
+  await pushCard.getByRole("button", { name: "إرسال إشعار تجريبي" }).click();
+  const testPush = await pushWaitFor("إشعار تجريبي");
+  check("إشعارات الجوال: الإشعار التجريبي يصل مشفّرًا ويُفك بمفتاح الجهاز", !!testPush && testPush.data.url === "/admin/orders");
+  check("إشعارات الجوال: ترويسات Web Push صحيحة", !!testPush && /^vapid t=.+, k=.+/.test(testPush.headers.authorization || "") && testPush.headers["content-encoding"] === "aes128gcm" && testPush.headers.ttl === "86400" && testPush.headers.urgency === "high", testPush && JSON.stringify(testPush.headers));
+  await admin.waitForTimeout(1000);
+  pushRow = (await sql`select value from settings where key = 'webpush'`)[0].value;
+  check("إشعارات الجوال: الجهاز الملغى حُذف تلقائيًا", pushRow.devices.length === 1 && pushRow.devices[0].endpoint === pushDevice.endpoint);
+
   // ─────────────── إشعارات تيليجرام: ربط البوت والجوال ───────────────
   console.log("\n[تيليجرام] ربط الإشعارات");
   await sql`delete from settings where key = 'telegram'`;
   await admin.goto(`${BASE}/admin/settings`);
-  const tgCard = admin.locator("section", { hasText: "إشعارات الطلبات على الجوال" });
+  const tgCard = admin.locator("section", { hasText: "إشعارات عبر تيليجرام" });
   await tgCard.locator('input[name="botToken"]').fill("111111111:AAwrongTokenWrongTokenWrongToken_00000");
   await tgCard.getByRole("button", { name: "حفظ البوت" }).click();
   await admin.waitForTimeout(1500);
@@ -229,6 +304,8 @@ async function fillCheckout(page, { phone = "0551234567", email = "buyer@example
   const codOrder = (await sql`select * from orders where number = ${codNumber}`)[0];
   check(`إنشاء الطلب ${codNumber} في قاعدة البيانات`, !!codOrder);
   check("إجمالي الطلب في القاعدة 18380 هللة", codOrder.total === 18380, String(codOrder.total));
+  const codPush = await pushWaitFor(codNumber);
+  check("إشعارات الجوال: إشعار طلب الدفع عند الاستلام بالمبلغ", !!codPush && codPush.data.title.includes("183.80") && codPush.data.body.includes("الدفع عند الاستلام") && codPush.data.url === `/admin/orders/${codOrder.id}`, codPush && JSON.stringify(codPush.data));
   const codMsg = await tgWaitFor(codNumber);
   check("تيليجرام: إشعار طلب الدفع عند الاستلام وصل", !!codMsg);
   check("تيليجرام: الإشعار فيه المبلغ وطريقة الدفع ورابط الطلب", !!codMsg && codMsg.text.includes("183.80") && codMsg.text.includes("عند الاستلام") && codMsg.text.includes(`/admin/orders/${codOrder.id}`), codMsg && codMsg.text);
@@ -400,6 +477,7 @@ async function fillCheckout(page, { phone = "0551234567", email = "buyer@example
   await d.waitForTimeout(2000);
   check("ميسر: بطاقة مرفوضة تعرض صفحة فشل الدفع", (await d.locator("body").innerText()).includes("لم تكتمل عملية الدفع"));
   check("ميسر: حالة الدفع «failed»", (await sql`select payment_status from orders where id=${mo.id}`)[0].payment_status === "failed");
+  check("إشعارات الجوال: لا إشعار لطلب لم يُدفع", !(await pushMessages()).some((x) => x.data.title.includes(mNum)));
   check("تيليجرام: لا إشعار لطلب لم يُدفع", !(await tgMessages()).some((x) => x.text.includes(mNum)));
   // اللوحة: الطلب غير المدفوع لا يظهر في «الطلبات» بل في «سلات متروكة»
   await admin.goto(`${BASE}/admin/orders`);
@@ -419,9 +497,12 @@ async function fillCheckout(page, { phone = "0551234567", email = "buyer@example
   mo = (await sql`select * from orders where id=${mo.id}`)[0];
   check("ميسر: الدفع مؤكَّد عند العودة — «paid» و«processing»", mo.payment_status === "paid" && mo.status === "processing", JSON.stringify([mo.payment_status, mo.status]));
   check("ميسر: رقم العملية محفوظ", /^[0-9a-f-]{36}$/.test(mo.gateway_transaction_id || ""));
+  const paidPush = await pushWaitFor(mNum);
+  check("إشعارات الجوال: إشعار عند اكتمال الدفع الإلكتروني", !!paidPush && paidPush.data.title.includes("199") && paidPush.data.body.includes("مدفوع إلكترونيًا"), paidPush && JSON.stringify(paidPush.data));
   const paidMsg = await tgWaitFor(mNum);
   check("تيليجرام: إشعار عند اكتمال الدفع الإلكتروني", !!paidMsg && paidMsg.text.includes("199") && paidMsg.text.includes("مدفوع إلكترونيًا"), paidMsg && paidMsg.text);
   await admin.waitForTimeout(1500);
+  check("إشعارات الجوال: إشعار واحد فقط للطلب", (await pushMessages()).filter((x) => x.data.title.includes(mNum)).length === 1);
   check("تيليجرام: إشعار واحد فقط للطلب", (await tgMessages()).filter((x) => x.text.includes(mNum)).length === 1);
   await admin.goto(`${BASE}/admin/orders`);
   check("اللوحة: بعد الدفع ينتقل الطلب إلى قائمة الطلبات", (await admin.locator("table").innerText()).includes(mNum));
@@ -500,7 +581,10 @@ async function fillCheckout(page, { phone = "0551234567", email = "buyer@example
 
   // فصل تيليجرام يحذف رمز البوت من المتجر
   await admin.goto(`${BASE}/admin/settings`);
-  await admin.locator("section", { hasText: "إشعارات الطلبات على الجوال" }).getByRole("button", { name: "فصل تيليجرام" }).click();
+  await admin.locator("[data-push-card]").getByRole("button", { name: "إيقافها على هذا الجهاز" }).click();
+  await admin.locator("[data-push-card]").getByRole("button", { name: /تفعيل الإشعارات على هذا الجهاز/ }).waitFor({ timeout: 10000 });
+  check("إشعارات الجوال: الإيقاف يحذف الجهاز", (await sql`select value from settings where key = 'webpush'`)[0].value.devices.length === 0);
+  await admin.locator("section", { hasText: "إشعارات عبر تيليجرام" }).getByRole("button", { name: "فصل تيليجرام" }).click();
   await admin.waitForTimeout(2000);
   check("تيليجرام: الفصل يحذف رمز البوت", (await sql`select count(*)::int as c from settings where key = 'telegram'`)[0].c === 0);
 

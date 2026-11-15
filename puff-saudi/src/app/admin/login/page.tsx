@@ -1,3 +1,4 @@
+import { ADMIN_APP_META } from "@/lib/admin-app-meta";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getAdmin } from "@/lib/auth";
@@ -5,7 +6,11 @@ import { ActionForm, SubmitButton } from "@/components/admin/client";
 import { Field, Input } from "@/components/admin/ui";
 import { loginAction } from "./actions";
 
-export const metadata: Metadata = { title: "دخول لوحة التحكم — PUFF SAUDI", robots: { index: false, follow: false } };
+export const metadata: Metadata = {
+  title: "دخول لوحة التحكم — PUFF SAUDI",
+  robots: { index: false, follow: false },
+  ...ADMIN_APP_META,
+};
 export const dynamic = "force-dynamic";
 
 export default async function AdminLoginPage() {

@@ -10,6 +10,7 @@ import { hashPassword, verifyPassword } from "@/lib/password";
 import { edfapayConfigured, moyasarKeysPresent, saveSettings, siteUrl } from "@/lib/settings";
 import { createWebhook, listWebhooks, resendWebhookVerification } from "@/lib/moyasar";
 import { toLatinDigits } from "@/lib/normalize";
+import { addPushDevice, PushError, removePushDevice, sendPush } from "@/lib/push";
 import {
   disconnectTelegram,
   linkPendingChats,
@@ -141,6 +142,46 @@ export async function connectMoyasarWebhookAction(_prev: ActionState, _fd: FormD
     console.error("[moyasar] connect webhook failed", e);
     return fail("تعذّر ربط الإشعارات مع ميسر. تأكد من صحة المفتاح السري ثم أعد المحاولة.");
   }
+}
+
+/* ───────── إشعارات الطلبات على الجوال مباشرة (Web Push) ───────── */
+
+export async function savePushDeviceAction(
+  sub: { endpoint: string; keys: { p256dh: string; auth: string } },
+  label: string,
+): Promise<ActionState> {
+  await requireAdmin();
+  try {
+    await addPushDevice(sub ?? {}, String(label ?? ""));
+  } catch (e) {
+    if (e instanceof PushError) return fail(e.message);
+    console.error("[push] save device failed", e);
+    return fail("تعذّر تفعيل الإشعارات على هذا الجهاز");
+  }
+  revalidatePath("/admin/settings");
+  return ok("تم تفعيل الإشعارات على هذا الجهاز — جرّب «إرسال إشعار تجريبي»");
+}
+
+export async function removePushDeviceAction(id: string): Promise<ActionState> {
+  await requireAdmin();
+  if (!/^[0-9a-f]{24}$/.test(String(id))) return fail("طلب غير صحيح");
+  await removePushDevice(id);
+  revalidatePath("/admin/settings");
+  return ok("أُوقفت الإشعارات عن الجهاز");
+}
+
+export async function testPushAction(): Promise<ActionState> {
+  await requireAdmin();
+  const delivered = await sendPush({
+    title: "إشعار تجريبي — PUFF SAUDI",
+    body: "هكذا سيصلك إشعار كل طلب جديد مع مبلغه.",
+    url: "/admin/orders",
+    tag: "test",
+  });
+  revalidatePath("/admin/settings");
+  return delivered
+    ? ok(`أُرسل الإشعار التجريبي إلى ${delivered} جهاز — يظهر خلال ثوانٍ`)
+    : fail("لم يصل الإشعار لأي جهاز. فعّل الإشعارات على جوالك من جديد.");
 }
 
 /* ───────── إشعارات الطلبات على تيليجرام ───────── */

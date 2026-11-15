@@ -1,0 +1,18 @@
+{
+  "id": "/admin",
+  "name": "PUFF طلبات",
+  "short_name": "PUFF طلبات",
+  "description": "لوحة تحكم متجر PUFF SAUDI وإشعارات الطلبات",
+  "start_url": "/admin/orders",
+  "scope": "/admin",
+  "display": "standalone",
+  "background_color": "#F5F1E8",
+  "theme_color": "#0B0B0C",
+  "lang": "ar",
+  "dir": "rtl",
+  "icons": [
+    { "src": "/admin-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/admin-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/admin-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
