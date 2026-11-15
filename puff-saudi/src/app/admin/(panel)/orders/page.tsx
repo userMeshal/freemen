@@ -5,7 +5,15 @@ import { orders, type OrderStatus, type PaymentStatus } from "@/db/schema";
 import { cancelStaleUnpaidOrders, ORDER_STATUS_LABEL, PAYMENT_STATUS_LABEL } from "@/lib/orders";
 import { formatSar } from "@/lib/money";
 import { displayPhone, toLatinDigits } from "@/lib/normalize";
-import { fmtDateTime, one, ORDER_STATUS_TONE, pageNumber, PAYMENT_STATUS_TONE } from "@/lib/admin-utils";
+import {
+  ABANDONED_ORDER_SQL,
+  CONFIRMED_ORDER_SQL,
+  fmtDateTime,
+  one,
+  ORDER_STATUS_TONE,
+  pageNumber,
+  PAYMENT_STATUS_TONE,
+} from "@/lib/admin-utils";
 import { Badge, Card, EmptyState, Input, LinkButton, PageHeader, Pagination, Select, Table, Td, Th, btnCls } from "@/components/admin/ui";
 
 export const metadata = { title: "الطلبات" };
@@ -13,6 +21,14 @@ export const metadata = { title: "الطلبات" };
 const PER_PAGE = 20;
 const STATUSES = Object.keys(ORDER_STATUS_LABEL) as OrderStatus[];
 const PAYMENTS = Object.keys(PAYMENT_STATUS_LABEL) as PaymentStatus[];
+
+/** confirmed = طلبات تُجهَّز وتُشحن ، abandoned = وصل العميل للدفع ولم يُكمل ، all = الكل */
+type View = "confirmed" | "abandoned" | "all";
+const VIEW_SQL: Record<View, string | null> = {
+  confirmed: CONFIRMED_ORDER_SQL,
+  abandoned: ABANDONED_ORDER_SQL,
+  all: null,
+};
 
 export default async function AdminOrdersPage({
   searchParams,
@@ -24,10 +40,15 @@ export default async function AdminOrdersPage({
   const status = one(sp.status);
   const payment = one(sp.payment);
   const page = pageNumber(sp.page);
+  const viewParam = one(sp.view);
+  const view: View = viewParam === "abandoned" || viewParam === "all" ? viewParam : "confirmed";
+  const abandoned = view === "abandoned";
 
   await cancelStaleUnpaidOrders().catch(() => 0);
 
   const conds: SQL[] = [];
+  const viewSql = VIEW_SQL[view];
+  if (viewSql) conds.push(dsql.raw(viewSql));
   if (q) {
     const text = `%${q.replace(/[%_]/g, "")}%`;
     const digits = toLatinDigits(q).replace(/\D/g, "").replace(/^(00966|966|0)/, "");
@@ -39,7 +60,7 @@ export default async function AdminOrdersPage({
   if (PAYMENTS.includes(payment as PaymentStatus)) conds.push(eq(orders.paymentStatus, payment as PaymentStatus));
   const where = conds.length ? and(...conds) : undefined;
 
-  const [rows, total] = await Promise.all([
+  const [rows, total, tabCounts] = await Promise.all([
     db
       .select()
       .from(orders)
@@ -48,37 +69,85 @@ export default async function AdminOrdersPage({
       .limit(PER_PAGE)
       .offset((page - 1) * PER_PAGE),
     db.select({ c: dsql<number>`count(*)::int` }).from(orders).where(where),
+    db
+      .select({
+        confirmed: dsql<number>`count(*) filter (where ${dsql.raw(CONFIRMED_ORDER_SQL)})::int`,
+        abandoned: dsql<number>`count(*) filter (where ${dsql.raw(ABANDONED_ORDER_SQL)})::int`,
+        all: dsql<number>`count(*)::int`,
+      })
+      .from(orders),
   ]);
   const count = total[0]?.c ?? 0;
+  const filtered = Boolean(q || status || payment);
+  const basePath = view === "confirmed" ? "/admin/orders" : `/admin/orders?view=${view}`;
+  const tabs: { key: View; label: string; href: string; n: number }[] = [
+    { key: "confirmed", label: "الطلبات", href: "/admin/orders", n: tabCounts[0]?.confirmed ?? 0 },
+    { key: "abandoned", label: "سلات متروكة", href: "/admin/orders?view=abandoned", n: tabCounts[0]?.abandoned ?? 0 },
+    { key: "all", label: "الكل", href: "/admin/orders?view=all", n: tabCounts[0]?.all ?? 0 },
+  ];
 
   return (
     <>
-      <PageHeader title="الطلبات" subtitle={`${count.toLocaleString("en-US")} طلب`} />
+      <PageHeader
+        title={abandoned ? "سلات متروكة" : "الطلبات"}
+        subtitle={`${count.toLocaleString("en-US")} ${abandoned ? "سلة" : "طلب"}`}
+      />
+
+      <nav className="mb-4 flex flex-wrap gap-2" aria-label="تبويبات الطلبات">
+        {tabs.map((t) => (
+          <Link
+            key={t.key}
+            href={t.href}
+            aria-current={t.key === view ? "page" : undefined}
+            className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${
+              t.key === view ? "border-ink bg-ink text-paper" : "border-line bg-white text-ink hover:border-ink"
+            }`}
+          >
+            {t.label}
+            <span className={`rounded-full px-2 py-0.5 text-[11px] ${t.key === view ? "bg-paper/20" : "bg-paper-card text-ink-mute"}`}>
+              {t.n.toLocaleString("en-US")}
+            </span>
+          </Link>
+        ))}
+      </nav>
+
+      <p className="mb-4 text-xs leading-relaxed text-ink-mute">
+        {view === "confirmed"
+          ? "تظهر هنا الطلبات المدفوعة وطلبات الدفع عند الاستلام فقط — هذه التي تُجهَّز وتُشحن."
+          : abandoned
+            ? "عملاء وصلوا إلى صفحة الدفع ولم يُكملوه. لا تُشحن — تُلغى تلقائيًا بعد ساعتين ويعود مخزونها، ويمكنك التواصل مع العميل لإكمال طلبه."
+            : "كل الطلبات: المؤكدة والتي لم يكتمل دفعها."}
+      </p>
 
       <Card className="mb-4">
-        <form method="get" className="grid gap-3 md:grid-cols-[1fr_180px_180px_auto]">
+        <form method="get" className={`grid gap-3 ${abandoned ? "md:grid-cols-[1fr_auto]" : "md:grid-cols-[1fr_180px_180px_auto]"}`}>
+          {view !== "confirmed" ? <input type="hidden" name="view" value={view} /> : null}
           <Input name="q" defaultValue={q} placeholder="بحث برقم الطلب، الجوال أو الاسم" aria-label="بحث" />
+          {abandoned ? null : (
+            <>
           <Select name="status" defaultValue={status} aria-label="حالة الطلب">
-            <option value="">كل الحالات</option>
-            {STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {ORDER_STATUS_LABEL[s]}
-              </option>
-            ))}
-          </Select>
-          <Select name="payment" defaultValue={payment} aria-label="حالة الدفع">
-            <option value="">كل حالات الدفع</option>
-            {PAYMENTS.map((s) => (
-              <option key={s} value={s}>
-                {PAYMENT_STATUS_LABEL[s]}
-              </option>
-            ))}
-          </Select>
+                <option value="">كل الحالات</option>
+                {STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {ORDER_STATUS_LABEL[s]}
+                  </option>
+                ))}
+              </Select>
+              <Select name="payment" defaultValue={payment} aria-label="حالة الدفع">
+                <option value="">كل حالات الدفع</option>
+                {PAYMENTS.map((s) => (
+                  <option key={s} value={s}>
+                    {PAYMENT_STATUS_LABEL[s]}
+                  </option>
+                ))}
+              </Select>
+            </>
+          )}
           <div className="flex gap-2">
             <button type="submit" className={btnCls("dark")}>
               تصفية
             </button>
-            {q || status || payment ? <LinkButton href="/admin/orders">مسح</LinkButton> : null}
+            {filtered ? <LinkButton href={basePath}>مسح</LinkButton> : null}
           </div>
         </form>
       </Card>
@@ -96,6 +165,7 @@ export default async function AdminOrdersPage({
                 <Th>الدفع</Th>
                 <Th>الطريقة</Th>
                 <Th>التاريخ</Th>
+                {abandoned ? <Th>تواصل</Th> : null}
               </tr>
             </thead>
             <tbody>
@@ -119,14 +189,28 @@ export default async function AdminOrdersPage({
                   </Td>
                   <Td className="whitespace-nowrap text-ink-mute">{o.paymentMethod === "cod" ? "عند الاستلام" : "إلكتروني"}</Td>
                   <Td className="whitespace-nowrap text-ink-mute">{fmtDateTime(o.createdAt)}</Td>
+                  {abandoned ? (
+                    <Td>
+                      <a
+                        href={`https://wa.me/${o.customerPhone}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="whitespace-nowrap font-semibold underline underline-offset-4 hover:no-underline"
+                      >
+                        واتساب
+                      </a>
+                    </Td>
+                  ) : null}
                 </tr>
               ))}
             </tbody>
           </Table>
         ) : (
-          <EmptyState>{q || status || payment ? "لا توجد طلبات مطابقة للتصفية." : "لا توجد طلبات بعد."}</EmptyState>
+          <EmptyState>
+            {filtered ? "لا توجد نتائج مطابقة للتصفية." : abandoned ? "لا توجد سلات متروكة." : "لا توجد طلبات بعد."}
+          </EmptyState>
         )}
-        <Pagination page={page} totalPages={Math.ceil(count / PER_PAGE)} basePath="/admin/orders" params={{ q, status, payment }} />
+        <Pagination page={page} totalPages={Math.ceil(count / PER_PAGE)} basePath="/admin/orders" params={{ view: view === "confirmed" ? undefined : view, q, status, payment }} />
       </Card>
     </>
   );
