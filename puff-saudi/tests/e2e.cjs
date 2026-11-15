@@ -23,6 +23,20 @@ function check(name, cond, extra = "") {
   }
 }
 
+// خادم تيليجرام الوهمي (tests/mock-telegram.mjs)
+const TG = "http://127.0.0.1:4013";
+const TG_TOKEN = "123456789:AAmockTokenForLocalTestsOnly_0123456789";
+const tgPush = (text, chat) => fetch(`${TG}/__push`, { method: "POST", body: JSON.stringify({ text, chat }) });
+const tgMessages = async () => (await fetch(`${TG}/__sent`)).json();
+async function tgWaitFor(needle) {
+  for (let i = 0; i < 20; i++) {
+    const hit = (await tgMessages()).find((x) => x.text.includes(needle));
+    if (hit) return hit;
+    await new Promise((r) => setTimeout(r, 400));
+  }
+  return null;
+}
+
 async function fillCheckout(page, { phone = "0551234567", email = "buyer@example.com" } = {}) {
   await page.fill("#f-name", "عميل تجريبي");
   await page.fill("#f-phone", phone);
@@ -59,6 +73,41 @@ async function fillCheckout(page, { phone = "0551234567", email = "buyer@example
   await admin.waitForURL((u) => !u.pathname.includes("/login"), { timeout: 15000 });
   check("دخول المدير", new URL(admin.url()).pathname === "/admin");
   check("لوحة المعلومات تُعرض", (await admin.locator("body").innerText()).includes("الطلبات"));
+
+  // ─────────────── إشعارات تيليجرام: ربط البوت والجوال ───────────────
+  console.log("\n[تيليجرام] ربط الإشعارات");
+  await sql`delete from settings where key = 'telegram'`;
+  await admin.goto(`${BASE}/admin/settings`);
+  const tgCard = admin.locator("section", { hasText: "إشعارات الطلبات على الجوال" });
+  await tgCard.locator('input[name="botToken"]').fill("111111111:AAwrongTokenWrongTokenWrongToken_00000");
+  await tgCard.getByRole("button", { name: "حفظ البوت" }).click();
+  await admin.waitForTimeout(1500);
+  check("تيليجرام: رمز خاطئ يُرفض", (await tgCard.innerText()).includes("لم يقبل هذا الرمز"));
+  await tgCard.locator('input[name="botToken"]').fill(TG_TOKEN);
+  await tgCard.getByRole("button", { name: "حفظ البوت" }).click();
+  await tgCard.locator("a[data-telegram-link]").waitFor({ timeout: 10000 });
+  const tgHref = await tgCard.locator("a[data-telegram-link]").getAttribute("href");
+  const tgCode = (/^https:\/\/t\.me\/puff_test_bot\?start=([0-9a-f]{24})$/.exec(tgHref || "") || [])[1];
+  check("تيليجرام: رابط الربط يحمل رمزًا سريًا", !!tgCode, String(tgHref));
+  check("تيليجرام: رمز البوت لا يظهر في الصفحة", !(await admin.content()).includes(TG_TOKEN));
+  await tgCard.getByRole("button", { name: /أكملت/ }).click();
+  await admin.waitForTimeout(1500);
+  check("تيليجرام: الربط قبل الضغط على Start يُنبّه", (await tgCard.innerText()).includes("لم نجد رسالتك"));
+  // غريب وجد البوت وأرسل /start بلا الرمز الصحيح ← لا يُربط ، وصاحب المتجر بالرمز ← يُربط
+  await tgPush("/start", { id: 999, type: "private", first_name: "غريب" });
+  await tgPush("/start deadbeefdeadbeefdeadbeef", { id: 998, type: "private", first_name: "متطفل" });
+  await tgPush(`/start ${tgCode}`, { id: 555, type: "private", first_name: "مشعل" });
+  await tgCard.getByRole("button", { name: /أكملت/ }).click();
+  await admin.waitForTimeout(2000);
+  const tgRow = (await sql`select value from settings where key = 'telegram'`)[0].value;
+  check("تيليجرام: رُبط صاحب الرمز فقط", tgRow.chats.length === 1 && tgRow.chats[0].id === 555, JSON.stringify(tgRow.chats));
+  check("تيليجرام: الجوال المربوط يظهر في الإعدادات", (await tgCard.innerText()).includes("مشعل"));
+  let tgSent = await tgMessages();
+  check("تيليجرام: رسالة تأكيد الربط وصلت لصاحب الرمز فقط", tgSent.length === 1 && tgSent[0].chat_id === 555);
+  await tgCard.getByRole("button", { name: "إرسال إشعار تجريبي" }).click();
+  await admin.waitForTimeout(1500);
+  tgSent = await tgMessages();
+  check("تيليجرام: الإشعار التجريبي يصل", tgSent.length === 2 && tgSent[1].text.includes("إشعار تجريبي"));
 
   await admin.goto(`${BASE}/admin/settings`);
   const cod = admin.locator('input[name="codEnabled"]');
@@ -180,6 +229,9 @@ async function fillCheckout(page, { phone = "0551234567", email = "buyer@example
   const codOrder = (await sql`select * from orders where number = ${codNumber}`)[0];
   check(`إنشاء الطلب ${codNumber} في قاعدة البيانات`, !!codOrder);
   check("إجمالي الطلب في القاعدة 18380 هللة", codOrder.total === 18380, String(codOrder.total));
+  const codMsg = await tgWaitFor(codNumber);
+  check("تيليجرام: إشعار طلب الدفع عند الاستلام وصل", !!codMsg);
+  check("تيليجرام: الإشعار فيه المبلغ وطريقة الدفع ورابط الطلب", !!codMsg && codMsg.text.includes("183.80") && codMsg.text.includes("عند الاستلام") && codMsg.text.includes(`/admin/orders/${codOrder.id}`), codMsg && codMsg.text);
   check("خصم الكوبون 3720 والشحن 2500 ورسوم COD 1000", codOrder.discount === 3720 && codOrder.shipping === 2500 && codOrder.cod_fee === 1000);
   check("الجوال مخزَّن بصيغة موحدة", codOrder.customer_phone === "966551234567");
   check("العنوان المختصر والمدينة محفوظان", codOrder.address.shortAddress === "RRRD2929" && codOrder.address.city === "الرياض", JSON.stringify(codOrder.address));
@@ -348,6 +400,7 @@ async function fillCheckout(page, { phone = "0551234567", email = "buyer@example
   await d.waitForTimeout(2000);
   check("ميسر: بطاقة مرفوضة تعرض صفحة فشل الدفع", (await d.locator("body").innerText()).includes("لم تكتمل عملية الدفع"));
   check("ميسر: حالة الدفع «failed»", (await sql`select payment_status from orders where id=${mo.id}`)[0].payment_status === "failed");
+  check("تيليجرام: لا إشعار لطلب لم يُدفع", !(await tgMessages()).some((x) => x.text.includes(mNum)));
   // اللوحة: الطلب غير المدفوع لا يظهر في «الطلبات» بل في «سلات متروكة»
   await admin.goto(`${BASE}/admin/orders`);
   check("اللوحة: طلب لم يُدفع لا يظهر في قائمة الطلبات", !(await admin.locator("table").innerText()).includes(mNum));
@@ -366,6 +419,10 @@ async function fillCheckout(page, { phone = "0551234567", email = "buyer@example
   mo = (await sql`select * from orders where id=${mo.id}`)[0];
   check("ميسر: الدفع مؤكَّد عند العودة — «paid» و«processing»", mo.payment_status === "paid" && mo.status === "processing", JSON.stringify([mo.payment_status, mo.status]));
   check("ميسر: رقم العملية محفوظ", /^[0-9a-f-]{36}$/.test(mo.gateway_transaction_id || ""));
+  const paidMsg = await tgWaitFor(mNum);
+  check("تيليجرام: إشعار عند اكتمال الدفع الإلكتروني", !!paidMsg && paidMsg.text.includes("199") && paidMsg.text.includes("مدفوع إلكترونيًا"), paidMsg && paidMsg.text);
+  await admin.waitForTimeout(1500);
+  check("تيليجرام: إشعار واحد فقط للطلب", (await tgMessages()).filter((x) => x.text.includes(mNum)).length === 1);
   await admin.goto(`${BASE}/admin/orders`);
   check("اللوحة: بعد الدفع ينتقل الطلب إلى قائمة الطلبات", (await admin.locator("table").innerText()).includes(mNum));
   await admin.goto(`${BASE}/admin/orders?view=abandoned`);
@@ -440,6 +497,12 @@ async function fillCheckout(page, { phone = "0551234567", email = "buyer@example
   // إعادة المخزون غير محدود من اللوحة
   await setStock(null);
   check("إعادة المخزون «غير محدود» من اللوحة", (await sql`select stock from variants where id = ${straw.id}`)[0].stock === null);
+
+  // فصل تيليجرام يحذف رمز البوت من المتجر
+  await admin.goto(`${BASE}/admin/settings`);
+  await admin.locator("section", { hasText: "إشعارات الطلبات على الجوال" }).getByRole("button", { name: "فصل تيليجرام" }).click();
+  await admin.waitForTimeout(2000);
+  check("تيليجرام: الفصل يحذف رمز البوت", (await sql`select count(*)::int as c from settings where key = 'telegram'`)[0].c === 0);
 
   console.log(`\n${passed} ناجح، ${failures.length} فاشل`);
   if (failures.length) console.log("الفاشلة:\n - " + failures.join("\n - "));

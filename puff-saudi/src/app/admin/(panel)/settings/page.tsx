@@ -5,17 +5,23 @@ import { admins } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
 import { edfapayConfigured, getSettings, moyasarKeysPresent, siteUrl } from "@/lib/settings";
 import { listWebhooks, MoyasarIpNotAllowedError, moyasarMode, moyasarOutboundIp, moyasarProxyConfigured } from "@/lib/moyasar";
+import { readTelegram, telegramLink } from "@/lib/telegram";
 import { fmtDate, halalasToInput } from "@/lib/admin-utils";
-import { Badge, Card, Checkbox, Field, Input, PageHeader, Textarea } from "@/components/admin/ui";
+import { Badge, btnCls, Card, Checkbox, Field, Input, PageHeader, Textarea } from "@/components/admin/ui";
 import { ActionForm, ConfirmButton, CopyField, SubmitButton } from "@/components/admin/client";
 import {
   addAdminAction,
   changePasswordAction,
   connectMoyasarWebhookAction,
+  disconnectTelegramAction,
+  linkTelegramAction,
   removeAdminAction,
+  removeTelegramChatAction,
   saveMarketingAction,
   savePaymentAction,
   saveStoreInfoAction,
+  saveTelegramTokenAction,
+  testTelegramAction,
 } from "./actions";
 
 export const metadata = { title: "الإعدادات" };
@@ -31,7 +37,11 @@ function Check({ ok, children }: { ok: boolean; children: React.ReactNode }) {
 
 export default async function AdminSettingsPage() {
   const me = await requireAdmin();
-  const [s, adminRows] = await Promise.all([getSettings(), db.select().from(admins).orderBy(asc(admins.id))]);
+  const [s, adminRows, telegram] = await Promise.all([
+    getSettings(),
+    db.select().from(admins).orderBy(asc(admins.id)),
+    readTelegram(),
+  ]);
 
   const hasKey = edfapayConfigured();
   const hasSecret = Boolean(process.env.EDFAPAY_WEBHOOK_SECRET);
@@ -260,6 +270,101 @@ export default async function AdminSettingsPage() {
               {hasBlob ? "مضبوط" : "غير مضبوط — الرفع يعمل محليًا فقط"}
             </Check>
           </ul>
+        </Card>
+
+        <Card
+          title="إشعارات الطلبات على الجوال (تيليجرام)"
+          className="xl:col-span-2"
+          actions={
+            <Badge tone={telegram?.chats.length ? "green" : "amber"}>
+              {telegram?.chats.length ? "مفعّلة" : telegram ? "بانتظار ربط الجوال" : "غير مفعّلة"}
+            </Badge>
+          }
+        >
+          <p className="text-sm leading-relaxed text-ink-mute">
+            يصلك إشعار فوري على تيليجرام مع كل طلب مؤكَّد (مدفوع إلكترونيًا أو دفع عند الاستلام): رقم الطلب، المبلغ، العميل، المنتجات ورابط
+            الطلب. الطلبات التي لم يكتمل دفعها لا تُرسَل.
+          </p>
+
+          {!telegram ? (
+            <>
+              <ol className="mt-4 list-decimal space-y-1.5 pr-5 text-sm leading-relaxed">
+                <li>
+                  افتح تيليجرام وابحث عن <code dir="ltr">@BotFather</code> (عليه علامة التوثيق الزرقاء) واضغط Start.
+                </li>
+                <li>
+                  أرسل له <code dir="ltr">/newbot</code> ثم اكتب اسمًا للبوت (مثل: طلبات بف)، ثم اسم مستخدم بالإنجليزية ينتهي بـ{" "}
+                  <code dir="ltr">bot</code> (مثل: <code dir="ltr">puff_orders_bot</code>).
+                </li>
+                <li>سيعطيك رمزًا طويلًا — انسخه والصقه هنا.</li>
+              </ol>
+              <ActionForm action={saveTelegramTokenAction} className="mt-4 max-w-xl" resetOnSuccess>
+                <Field label="رمز البوت (Token)" hint="يُحفظ في المتجر ولا يُعرض بعد الحفظ.">
+                  <Input name="botToken" type="password" dir="ltr" autoComplete="off" required placeholder="123456789:AA…" />
+                </Field>
+                <SubmitButton variant="dark" className="mt-3">
+                  حفظ البوت
+                </SubmitButton>
+              </ActionForm>
+            </>
+          ) : (
+            <>
+              <p className="mt-4 text-sm">
+                البوت: <code dir="ltr" className="rounded bg-paper-deep px-2 py-1 font-semibold">@{telegram.botUsername}</code>
+              </p>
+
+              {telegram.chats.length ? (
+                <ul className="mt-4 divide-y divide-line/70 rounded-xl border border-line">
+                  {telegram.chats.map((c) => (
+                    <li key={c.id} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
+                      <span className="min-w-0 truncate font-semibold">{c.name}</span>
+                      <ActionForm action={removeTelegramChatAction} flashClassName="hidden">
+                        <input type="hidden" name="chatId" value={c.id} />
+                        <ConfirmButton message={`إيقاف الإشعارات عن «${c.name}»؟`}>إزالة</ConfirmButton>
+                      </ActionForm>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+
+              <div className="mt-4 rounded-xl bg-paper-card p-4">
+                <p className="text-sm font-semibold">{telegram.chats.length ? "ربط جوال آخر أو قروب" : "اربط جوالك — خطوتان"}</p>
+                <ol className="mt-2 list-decimal space-y-1 pr-5 text-sm leading-relaxed text-ink-mute">
+                  <li>افتح البوت من الزر التالي على الجوال الذي تريد أن تصله الإشعارات، واضغط Start.</li>
+                  <li>ارجع إلى هنا واضغط «أكملت — اربط جوالي».</li>
+                </ol>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <a href={telegramLink(telegram)} target="_blank" rel="noopener noreferrer" className={btnCls("primary", "sm")} data-telegram-link>
+                    فتح البوت في تيليجرام
+                  </a>
+                  <a href={telegramLink(telegram, true)} target="_blank" rel="noopener noreferrer" className={btnCls("outline", "sm")}>
+                    إضافته إلى قروب
+                  </a>
+                </div>
+                <ActionForm action={linkTelegramAction} className="mt-3">
+                  <SubmitButton variant="dark" size="sm">
+                    أكملت — اربط جوالي
+                  </SubmitButton>
+                </ActionForm>
+                <p className="mt-3 text-[11px] leading-relaxed text-ink-mute">
+                  هذا الرابط خاص بك — لا ترسله إلا لمن تريد أن تصله إشعارات الطلبات.
+                </p>
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-start gap-3">
+                {telegram.chats.length ? (
+                  <ActionForm action={testTelegramAction}>
+                    <SubmitButton variant="outline" size="sm">
+                      إرسال إشعار تجريبي
+                    </SubmitButton>
+                  </ActionForm>
+                ) : null}
+                <ActionForm action={disconnectTelegramAction}>
+                  <ConfirmButton message="فصل تيليجرام وحذف رمز البوت؟ ستتوقف كل الإشعارات.">فصل تيليجرام</ConfirmButton>
+                </ActionForm>
+              </div>
+            </>
+          )}
         </Card>
 
         <Card title="تغيير كلمة المرور">

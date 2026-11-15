@@ -10,6 +10,14 @@ import { hashPassword, verifyPassword } from "@/lib/password";
 import { edfapayConfigured, moyasarKeysPresent, saveSettings, siteUrl } from "@/lib/settings";
 import { createWebhook, listWebhooks, resendWebhookVerification } from "@/lib/moyasar";
 import { toLatinDigits } from "@/lib/normalize";
+import {
+  disconnectTelegram,
+  linkPendingChats,
+  removeTelegramChat,
+  saveBotToken,
+  sendTelegramTest,
+  TelegramError,
+} from "@/lib/telegram";
 import { bool, fail, firstError, ok, sarToHalalas, str, type ActionState } from "@/lib/admin-utils";
 
 function refresh() {
@@ -133,6 +141,63 @@ export async function connectMoyasarWebhookAction(_prev: ActionState, _fd: FormD
     console.error("[moyasar] connect webhook failed", e);
     return fail("تعذّر ربط الإشعارات مع ميسر. تأكد من صحة المفتاح السري ثم أعد المحاولة.");
   }
+}
+
+/* ───────── إشعارات الطلبات على تيليجرام ───────── */
+
+const telegramFail = (e: unknown, fallback: string) => {
+  if (e instanceof TelegramError) return fail(e.message);
+  console.error("[telegram]", e);
+  return fail(fallback);
+};
+
+export async function saveTelegramTokenAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  await requireAdmin();
+  try {
+    const config = await saveBotToken(str(fd, "botToken"));
+    revalidatePath("/admin/settings");
+    return ok(`تم حفظ البوت @${config.botUsername} — افتحه الآن واضغط Start ثم اضغط «أكملت — اربط جوالي»`);
+  } catch (e) {
+    return telegramFail(e, "تعذّر حفظ رمز البوت");
+  }
+}
+
+export async function linkTelegramAction(_prev: ActionState, _fd: FormData): Promise<ActionState> {
+  await requireAdmin();
+  try {
+    const added = await linkPendingChats();
+    revalidatePath("/admin/settings");
+    if (!added.length) return fail("لم نجد رسالتك بعد. افتح رابط البوت من الزر أعلاه، اضغط Start داخل تيليجرام، ثم أعد المحاولة.");
+    return ok(`تم ربط: ${added.join("، ")} — وصلتك رسالة تأكيد على تيليجرام`);
+  } catch (e) {
+    return telegramFail(e, "تعذّر إكمال الربط");
+  }
+}
+
+export async function testTelegramAction(_prev: ActionState, _fd: FormData): Promise<ActionState> {
+  await requireAdmin();
+  try {
+    const delivered = await sendTelegramTest();
+    return delivered ? ok("أُرسل الإشعار التجريبي — تفقّد تيليجرام") : fail("لم تصل الرسالة. إن كنت حظرت البوت أو حذفت المحادثة فأعد الربط.");
+  } catch (e) {
+    return telegramFail(e, "تعذّر إرسال الإشعار التجريبي");
+  }
+}
+
+export async function removeTelegramChatAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  await requireAdmin();
+  const id = Number(str(fd, "chatId"));
+  if (!Number.isSafeInteger(id)) return fail("طلب غير صحيح");
+  await removeTelegramChat(id);
+  revalidatePath("/admin/settings");
+  return ok("أُزيل الجوال من الإشعارات");
+}
+
+export async function disconnectTelegramAction(_prev: ActionState, _fd: FormData): Promise<ActionState> {
+  await requireAdmin();
+  await disconnectTelegram();
+  revalidatePath("/admin/settings");
+  return ok("تم فصل تيليجرام وحذف رمز البوت من المتجر");
 }
 
 const passwordRule = z.string().min(10, "كلمة المرور يجب ألا تقل عن 10 أحرف").max(200, "كلمة المرور طويلة جدًا");

@@ -1,5 +1,6 @@
 "use server";
 
+import { queueOrderNotification } from "@/lib/telegram";
 import { z } from "zod";
 import { and, eq, sql as dsql } from "drizzle-orm";
 import { db } from "@/db";
@@ -153,7 +154,11 @@ export async function placeOrderAction(input: CheckoutInput): Promise<CheckoutRe
   }
 
   const orderUrl = `/order/${order.number}?t=${order.accessToken}`;
-  if (data.paymentMethod === "cod") return { ok: true, redirect: `${orderUrl}&new=1`, external: false };
+  if (data.paymentMethod === "cod") {
+    // طلب الدفع عند الاستلام مؤكَّد لحظة إنشائه؛ الدفع الإلكتروني يُشعَر به عند تأكيد الدفع
+    queueOrderNotification(order.id);
+    return { ok: true, redirect: `${orderUrl}&new=1`, external: false };
+  }
   // ميسر: الدفع يتم داخل الموقع في صفحة الدفع الخاصة بالطلب
   if (data.paymentMethod === "moyasar") {
     return { ok: true, redirect: `/checkout/pay/${order.number}?t=${order.accessToken}`, external: false };
