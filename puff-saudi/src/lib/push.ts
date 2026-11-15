@@ -108,9 +108,15 @@ export async function sendPush(payload: PushPayload): Promise<number> {
     config.devices.map(async (d) => {
       try {
         const req = webpush.generateRequestDetails({ endpoint: d.endpoint, keys: d.keys }, body, { vapidDetails, TTL: 60 * 60 * 24, urgency: "high" });
+        // web-push يضع Content-Length وTTL كأرقام. نحذف Content-Length (fetch يحسبه بنفسه) ونحوّل الباقي لنصوص:
+        // على الخادم يمر fetch عبر موزّع مكتبة undici (تُحمَّل لوسيط ميسر) وهذا يرفض الطلب بـ «invalid content-length header».
+        const headers: Record<string, string> = {};
+        for (const [name, value] of Object.entries(req.headers)) {
+          if (name.toLowerCase() !== "content-length") headers[name] = String(value);
+        }
         const res = await fetch(req.endpoint, {
           method: req.method,
-          headers: req.headers as Record<string, string>,
+          headers,
           body: req.body ? new Uint8Array(req.body) : undefined,
           cache: "no-store",
           signal: AbortSignal.timeout(8_000),
