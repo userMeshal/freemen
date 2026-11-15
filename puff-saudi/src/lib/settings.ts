@@ -64,10 +64,18 @@ async function readSettings(): Promise<StoreSettings> {
   return { ...DEFAULT_SETTINGS, ...value };
 }
 
-export const getSettings = unstable_cache(readSettings, ["store-settings"], {
+const getCachedSettings = unstable_cache(readSettings, ["store-settings"], {
   tags: ["settings"],
   revalidate: 3600,
 });
+
+/**
+ * القيم الافتراضية تُدمج بعد القراءة من الكاش أيضًا: الكاش يبقى بين النشرات، فقيمة خُزّنت قبل إضافة
+ * إعداد جديد لا تحتوي عليه — بدون هذا الدمج يظهر الإعداد الجديد كأنه «مطفأ» حتى تنتهي مدة الكاش.
+ */
+export async function getSettings(): Promise<StoreSettings> {
+  return { ...DEFAULT_SETTINGS, ...(await getCachedSettings()) };
+}
 
 export async function saveSettings(patch: Partial<StoreSettings>) {
   const current = await readSettings();
