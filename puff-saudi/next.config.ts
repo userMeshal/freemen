@@ -5,6 +5,45 @@ import catalog from "./data/catalog.json";
 const legacy = (catalog as { legacySlugs: Record<string, string> }).legacySlugs;
 const categories = (catalog as { categories: { slug: string }[] }).categories;
 
+const PIXEL_SCRIPTS = [
+  "https://connect.facebook.net",
+  "https://analytics.tiktok.com",
+  "https://sc-static.net",
+  "https://*.googletagmanager.com",
+  "https://www.googleadservices.com",
+  "https://www.google.com",
+  "https://googleads.g.doubleclick.net",
+  "https://pagead2.googlesyndication.com",
+  "https://static.ads-twitter.com",
+  "https://s.pinimg.com",
+].join(" ");
+
+/** نطاقات تُرسَل إليها الأحداث (طلبات وصور تتبع) */
+const PIXEL_BEACONS = [
+  "https://www.facebook.com",
+  "https://connect.facebook.net",
+  "https://analytics.tiktok.com",
+  "https://*.tiktokw.us",
+  "https://*.tiktok.com",
+  "https://*.snapchat.com",
+  "https://sc-static.net",
+  "https://*.google-analytics.com",
+  "https://*.analytics.google.com",
+  "https://*.googletagmanager.com",
+  "https://*.g.doubleclick.net",
+  "https://*.google.com",
+  "https://google.com",
+  "https://*.google.com.sa",
+  "https://www.googleadservices.com",
+  "https://pagead2.googlesyndication.com",
+  "https://*.twitter.com",
+  "https://*.x.com",
+  "https://t.co",
+  "https://*.ads-twitter.com",
+  "https://*.pinterest.com",
+  "https://*.pinimg.com",
+].join(" ");
+
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "DENY" },
@@ -13,15 +52,18 @@ const securityHeaders = [
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(self)" },
   {
     key: "Content-Security-Policy",
+    // منصات التتبع (Meta، TikTok، Snapchat، Google، X، Pinterest): سكربتاتها ونطاقات إرسال الأحداث.
+    // أي منصة لا يُضبط معرّفها في لوحة التحكم لا يُحمَّل لها شيء.
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' https://connect.facebook.net https://analytics.tiktok.com https://applepay.cdn-apple.com" +
+      "script-src 'self' 'unsafe-inline' https://applepay.cdn-apple.com " +
+        PIXEL_SCRIPTS +
         (process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""),
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob: https://*.public.blob.vercel-storage.com https://www.facebook.com https://analytics.tiktok.com",
+      "img-src 'self' data: blob: https://*.public.blob.vercel-storage.com " + PIXEL_BEACONS,
       "font-src 'self' data:",
-      "connect-src 'self' https://api.moyasar.com https://www.facebook.com https://connect.facebook.net https://analytics.tiktok.com https://*.tiktokw.us https://*.tiktok.com",
-      "frame-src https://www.facebook.com",
+      "connect-src 'self' https://api.moyasar.com " + PIXEL_BEACONS,
+      "frame-src https://www.facebook.com https://*.snapchat.com https://*.doubleclick.net https://www.googletagmanager.com https://*.pinterest.com",
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self' https://*.edfapay.com https://api.moyasar.com",

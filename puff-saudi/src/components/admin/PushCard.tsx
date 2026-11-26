@@ -178,7 +178,9 @@ export function PushCard({ publicKey, devices }: { publicKey: string; devices: D
                 <span className="min-w-0">
                   <span className="font-semibold">{d.label}</span>
                   {d.id === thisDevice ? <span className="text-ink-mute"> (هذا الجهاز)</span> : null}
-                  <span className="block text-xs text-ink-mute">منذ {dateFmt.format(new Date(d.addedAt))}</span>
+                  <span className="block text-xs text-ink-mute" suppressHydrationWarning>
+                    منذ {dateFmt.format(new Date(d.addedAt))}
+                  </span>
                 </span>
                 <button
                   type="button"

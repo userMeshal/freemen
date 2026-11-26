@@ -23,6 +23,33 @@ function check(name, cond, extra = "") {
   }
 }
 
+// منصات التتبع: سكربتات المنصات لا تُحمَّل في بيئة الاختبار، فتبقى الأحداث في طوابير الانتظار التي ينشئها كود التهيئة — نقرؤها من هناك
+const PX = {
+  metaPixelId: "123456789012345",
+  tiktokPixelId: "CTESTPIXEL0000000001",
+  snapPixelId: "11111111-2222-3333-4444-555555555555",
+  xPixelId: "o1abc",
+  xPurchaseEventId: "tw-o1abc-o2xyz",
+  pinterestTagId: "2612345678901",
+  googleAnalyticsId: "G-TEST123456",
+  googleTagManagerId: "GTM-TEST123",
+};
+const pixelQueues = (page) =>
+  page.evaluate(() => {
+    const list = (q) => Array.from(q || []).map((a) => Array.from(a));
+    const dl = (window.dataLayer || []).map((x) => (Object.prototype.toString.call(x) === "[object Arguments]" ? { gtag: Array.from(x).map((v) => (v instanceof Date ? "date" : v)) } : x));
+    return {
+      snap: list(window.snaptr && window.snaptr.queue),
+      twq: list(window.twq && window.twq.queue),
+      pin: list(window.pintrk && window.pintrk.queue),
+      gtag: dl.filter((x) => x && x.gtag).map((x) => x.gtag),
+      gtm: dl.filter((x) => x && !x.gtag),
+      fb: list(window.fbq && window.fbq.queue),
+      scripts: [...document.scripts].map((el) => el.src).filter(Boolean),
+    };
+  });
+const has = (queue, ...head) => queue.find((call) => head.every((v, i) => call[i] === v));
+
 // خدمة الإشعارات الوهمية (tests/mock-push.mjs): المتجر يرسل لها إشعارات مشفّرة نفكّها هنا بمفتاح «الجهاز»
 const nodeCrypto = require("node:crypto");
 const ece = require("http_ece");
@@ -197,6 +224,22 @@ async function fillCheckout(page, { phone = "0551234567", email = "buyer@example
   check("حفظ إعدادات الدفع (COD مفعّل برسوم 10 ر.س)", st.codEnabled === true && st.codFee === 1000, JSON.stringify(st));
   check("تعطيل ميسر من اللوحة", st.moyasarEnabled === false);
 
+  // ─────────────── منصات التتبع (Pixels) من اللوحة ───────────────
+  console.log("\n[البكسلات] الإعداد من اللوحة");
+  const pxForm = admin.locator("form", { has: admin.locator('input[name="snapPixelId"]') });
+  await pxForm.locator('input[name="snapPixelId"]').fill("not-a-pixel-id");
+  await pxForm.locator('button[type="submit"]').click();
+  await admin.waitForTimeout(1500);
+  check("البكسلات: معرّف بصيغة خاطئة يُرفض برسالة واضحة", (await pxForm.innerText()).includes("معرّف Snap Pixel بهذه الصيغة"));
+  for (const [name, value] of Object.entries(PX)) await pxForm.locator(`input[name="${name}"]`).fill(value);
+  // لصق AW-…/… كاملًا في خانة المعرّف يوزَّع على الخانتين
+  await pxForm.locator('input[name="googleAdsId"]').fill("aw-123456789/AbCdEfGhIj");
+  await pxForm.locator('button[type="submit"]').click();
+  await admin.waitForTimeout(2000);
+  const pxSaved = (await sql`select value from settings where key='store'`)[0].value;
+  check("البكسلات: حُفظت معرّفات المنصات كلها", Object.entries(PX).every(([k, v]) => pxSaved[k] === v), JSON.stringify(Object.fromEntries(Object.keys(PX).map((k) => [k, pxSaved[k]]))));
+  check("البكسلات: Google Ads وُزّع إلى معرّف وتسمية تحويل", pxSaved.googleAdsId === "AW-123456789" && pxSaved.googleAdsPurchaseLabel === "AbCdEfGhIj", `${pxSaved.googleAdsId} | ${pxSaved.googleAdsPurchaseLabel}`);
+
   await sql`delete from coupons where code = 'TEST20'`;
   await admin.goto(`${BASE}/admin/coupons`);
   const couponForm = admin.locator("form").filter({ has: admin.locator('input[name="code"]') }).first();
@@ -228,8 +271,19 @@ async function fillCheckout(page, { phone = "0551234567", email = "buyer@example
   const mobile = await browser.newContext({ ...devices["iPhone 13"] });
   const m = await mobile.newPage();
   watch(m, "mobile");
-  await m.goto(`${BASE}/`, { waitUntil: "networkidle" });
+  const cspBlocks = [];
+  m.on("console", (msg) => /Content Security Policy/i.test(msg.text()) && cspBlocks.push(msg.text().slice(0, 160)));
+  const homeRes = await m.goto(`${BASE}/`, { waitUntil: "networkidle" });
   await m.waitForTimeout(2800);
+  let px = await pixelQueues(m);
+  check("البكسلات: سكربتات المنصات الست كلها في الصفحة", ["connect.facebook.net", "analytics.tiktok.com", "sc-static.net/scevent.min.js", "googletagmanager.com/gtag/js?id=G-TEST123456", "googletagmanager.com/gtm.js?id=GTM-TEST123", "static.ads-twitter.com/uwt.js", "s.pinimg.com/ct/core.js"].every((u) => px.scripts.some((src) => src.includes(u))), px.scripts.filter((u) => !u.includes("localhost")).join(" "));
+  check("البكسلات: Snapchat — تهيئة وزيارة صفحة", !!has(px.snap, "init", PX.snapPixelId) && !!has(px.snap, "track", "PAGE_VIEW"), JSON.stringify(px.snap));
+  check("البكسلات: Google — تهيئة Analytics و Ads", !!has(px.gtag, "config", "G-TEST123456") && !!has(px.gtag, "config", "AW-123456789"), JSON.stringify(px.gtag));
+  check("البكسلات: Tag Manager — بدء الحاوية", px.gtm.some((x) => x.event === "gtm.js"));
+  check("البكسلات: X — تهيئة", !!has(px.twq, "config", "o1abc"), JSON.stringify(px.twq));
+  check("البكسلات: Pinterest — تحميل وزيارة صفحة", !!has(px.pin, "load", PX.pinterestTagId) && !!has(px.pin, "page"), JSON.stringify(px.pin));
+  const csp = homeRes.headers()["content-security-policy"] || "";
+  check("البكسلات: سياسة الأمان تسمح بنطاقات المنصات", ["sc-static.net", "*.snapchat.com", "*.googletagmanager.com", "*.google-analytics.com", "static.ads-twitter.com", "s.pinimg.com", "*.pinterest.com"].every((d) => csp.includes(d)));
   check("الرئيسية: كلمة PUFF العملاقة ظاهرة", await m.locator(".hero-word").isVisible());
   check("لا يوجد تمرير أفقي على الجوال", await m.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
 
@@ -246,8 +300,14 @@ async function fillCheckout(page, { phone = "0551234567", email = "buyer@example
   await swatches.nth(4).click();
   await m.waitForTimeout(700);
   check("تغيير اللون يحدّث الرابط", m.url().includes("?v="));
+  px = await pixelQueues(m);
+  check("البكسلات: عرض المنتج عند فتح الصفحة مباشرة يصل لـ Meta و TikTok", !!has(px.fb, "track", "ViewContent") && (await m.evaluate(() => Array.from(window.ttq || []).some((c) => c[0] === "track" && c[1] === "ViewContent"))), JSON.stringify(px.fb.map((c) => c.slice(0, 2))));
+  check("البكسلات: عرض المنتج يُرسَل لـ Snapchat و Google و Pinterest", !!has(px.snap, "track", "VIEW_CONTENT") && !!has(px.gtag, "event", "view_item") && !!has(px.pin, "track", "pagevisit") && px.gtm.some((x) => x.event === "view_item" && x.ecommerce && x.ecommerce.items.length === 1), JSON.stringify([px.snap, px.pin]));
   await m.getByRole("button", { name: /أضف إلى السلة/ }).first().click();
   await m.waitForTimeout(1600);
+  px = await pixelQueues(m);
+  const snapCart = has(px.snap, "track", "ADD_CART");
+  check("البكسلات: الإضافة للسلة بقيمتها (146 ر.س)", !!snapCart && snapCart[2].price === 146 && snapCart[2].currency === "SAR" && has(px.gtag, "event", "add_to_cart")[2].value === 146 && has(px.pin, "track", "addtocart")[2].value === 146, JSON.stringify(snapCart));
   check("السلة الجانبية تفتح بعد الإضافة", await m.getByRole("dialog", { name: "سلة المشتريات" }).isVisible());
   await m.getByRole("button", { name: "إغلاق السلة" }).click();
   await m.waitForTimeout(800);
@@ -304,6 +364,19 @@ async function fillCheckout(page, { phone = "0551234567", email = "buyer@example
   const codOrder = (await sql`select * from orders where number = ${codNumber}`)[0];
   check(`إنشاء الطلب ${codNumber} في قاعدة البيانات`, !!codOrder);
   check("إجمالي الطلب في القاعدة 18380 هللة", codOrder.total === 18380, String(codOrder.total));
+  px = await pixelQueues(m);
+  const snapBuy = has(px.snap, "track", "PURCHASE");
+  check("البكسلات: الشراء لـ Snapchat برقم الطلب والمبلغ", !!snapBuy && snapBuy[2].transaction_id === codNumber && snapBuy[2].price === 183.8, JSON.stringify(snapBuy));
+  const gaBuy = has(px.gtag, "event", "purchase");
+  check("البكسلات: الشراء لـ Google Analytics", !!gaBuy && gaBuy[2].transaction_id === codNumber && gaBuy[2].value === 183.8 && gaBuy[2].items.length === 2, JSON.stringify(gaBuy));
+  const adsBuy = has(px.gtag, "event", "conversion");
+  check("البكسلات: تحويل الشراء لـ Google Ads", !!adsBuy && adsBuy[2].send_to === "AW-123456789/AbCdEfGhIj" && adsBuy[2].value === 183.8 && adsBuy[2].transaction_id === codNumber, JSON.stringify(adsBuy));
+  check("البكسلات: الشراء في dataLayer لـ Tag Manager", px.gtm.some((x) => x.event === "purchase" && x.ecommerce && x.ecommerce.transaction_id === codNumber && x.ecommerce.value === 183.8));
+  const xBuy = has(px.twq, "event", "tw-o1abc-o2xyz");
+  check("البكسلات: تحويل الشراء لـ X", !!xBuy && xBuy[2].value === 183.8 && xBuy[2].conversion_id === codNumber, JSON.stringify(px.twq));
+  const pinBuy = has(px.pin, "track", "checkout");
+  check("البكسلات: الشراء لـ Pinterest", !!pinBuy && pinBuy[2].order_id === codNumber && pinBuy[2].value === 183.8 && pinBuy[2].order_quantity === 3, JSON.stringify(pinBuy));
+  check("البكسلات: سياسة الأمان لم تحجب أي سكربت", cspBlocks.length === 0, cspBlocks.join(" | "));
   const codPush = await pushWaitFor(codNumber);
   check("إشعارات الجوال: إشعار طلب الدفع عند الاستلام بالمبلغ", !!codPush && codPush.data.title.includes("183.80") && codPush.data.body.includes("الدفع عند الاستلام") && codPush.data.url === `/admin/orders/${codOrder.id}`, codPush && JSON.stringify(codPush.data));
   const codMsg = await tgWaitFor(codNumber);
@@ -581,6 +654,15 @@ async function fillCheckout(page, { phone = "0551234567", email = "buyer@example
 
   // فصل تيليجرام يحذف رمز البوت من المتجر
   await admin.goto(`${BASE}/admin/settings`);
+  // تفريغ خانات البكسلات يوقف المنصات
+  const pxOff = admin.locator("form", { has: admin.locator('input[name="snapPixelId"]') });
+  for (const name of [...Object.keys(PX), "googleAdsId", "googleAdsPurchaseLabel"]) await pxOff.locator(`input[name="${name}"]`).fill("");
+  await pxOff.locator('button[type="submit"]').click();
+  await admin.waitForTimeout(2000);
+  const offPage = await mobile.newPage();
+  await offPage.goto(`${BASE}/`, { waitUntil: "networkidle" });
+  check("البكسلات: تفريغ الخانات يزيل كل السكربتات من المتجر", await offPage.evaluate(() => !window.snaptr && !window.fbq && !window.ttq && !window.twq && !window.pintrk && !window.gtag));
+  await offPage.close();
   await admin.locator("[data-push-card]").getByRole("button", { name: "إيقافها على هذا الجهاز" }).click();
   await admin.locator("[data-push-card]").getByRole("button", { name: /تفعيل الإشعارات على هذا الجهاز/ }).waitFor({ timeout: 10000 });
   check("إشعارات الجوال: الإيقاف يحذف الجهاز", (await sql`select value from settings where key = 'webpush'`)[0].value.devices.length === 0);
