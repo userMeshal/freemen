@@ -21,6 +21,20 @@ export type StoreSettings = {
   announcement: string;
   metaPixelId: string;
   tiktokPixelId: string;
+  /** Snapchat Pixel ID (بصيغة UUID) */
+  snapPixelId: string;
+  /** Google Analytics 4 — G-XXXXXXX */
+  googleAnalyticsId: string;
+  /** Google Ads — AW-XXXXXXXXX ، وتسمية تحويل الشراء (الجزء بعد الشرطة المائلة) */
+  googleAdsId: string;
+  googleAdsPurchaseLabel: string;
+  /** Google Tag Manager — GTM-XXXXXXX */
+  googleTagManagerId: string;
+  /** X (تويتر) Pixel ID ، ومعرّف حدث الشراء tw-xxxxx-yyyyy */
+  xPixelId: string;
+  xPurchaseEventId: string;
+  /** Pinterest Tag ID */
+  pinterestTagId: string;
   edfapayEnabled: boolean;
   moyasarEnabled: boolean;
   /** Apple Pay عبر ميسر — يتطلب تسجيل الدومين في لوحة ميسر */
@@ -49,6 +63,14 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   announcement: "",
   metaPixelId: "",
   tiktokPixelId: "",
+  snapPixelId: "",
+  googleAnalyticsId: "",
+  googleAdsId: "",
+  googleAdsPurchaseLabel: "",
+  googleTagManagerId: "",
+  xPixelId: "",
+  xPurchaseEventId: "",
+  pinterestTagId: "",
   edfapayEnabled: true,
   moyasarEnabled: true,
   moyasarApplePay: false,

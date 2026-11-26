@@ -121,19 +121,49 @@ export default async function AdminSettingsPage() {
           </ActionForm>
         </Card>
 
-        <Card title="الشريط الإعلاني والتتبع (Pixels)">
-          <ActionForm action={saveMarketingAction} className="space-y-4">
+        <Card title="الشريط الإعلاني ومنصات التتبع (Pixels)" className="xl:col-span-2">
+          <ActionForm action={saveMarketingAction} className="space-y-5">
             <Field label="نص الشريط الإعلاني أعلى المتجر" hint="اتركه فارغًا لإخفاء الشريط">
               <Input name="announcement" defaultValue={s.announcement} maxLength={200} placeholder="مثال: شحن مجاني للطلبات فوق 300 ر.س" />
             </Field>
-            <Field label="Meta Pixel ID" hint="من Meta Events Manager — أرقام فقط">
-              <Input name="metaPixelId" dir="ltr" inputMode="numeric" defaultValue={s.metaPixelId} />
-            </Field>
-            <Field label="TikTok Pixel ID" hint="من TikTok Ads Manager ← Events">
-              <Input name="tiktokPixelId" dir="ltr" defaultValue={s.tiktokPixelId} />
-            </Field>
+
+            <div className="grid gap-4 md:grid-cols-2" data-pixels>
+              <Field label="Meta Pixel (فيسبوك وإنستغرام)" hint="من Meta Events Manager — أرقام فقط">
+                <Input name="metaPixelId" dir="ltr" inputMode="numeric" defaultValue={s.metaPixelId} placeholder="123456789012345" />
+              </Field>
+              <Field label="TikTok Pixel" hint="من TikTok Ads Manager ← Events">
+                <Input name="tiktokPixelId" dir="ltr" defaultValue={s.tiktokPixelId} placeholder="CXXXXXXXXXXXXXXXXXXX" />
+              </Field>
+              <Field label="Snapchat Pixel" hint="من Snapchat Ads Manager ← Events Manager ← Pixel ID">
+                <Input name="snapPixelId" dir="ltr" defaultValue={s.snapPixelId} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+              </Field>
+              <Field label="X (تويتر) Pixel" hint="من X Ads ← Events Manager — الأحرف القصيرة مثل o1abc">
+                <Input name="xPixelId" dir="ltr" defaultValue={s.xPixelId} placeholder="o1abc" />
+              </Field>
+              <Field label="X — معرّف حدث الشراء (اختياري)" hint="ليُحتسب الشراء كتحويل في X: أنشئ حدث Purchase وانسخ معرّفه">
+                <Input name="xPurchaseEventId" dir="ltr" defaultValue={s.xPurchaseEventId} placeholder="tw-o1abc-o2xyz" />
+              </Field>
+              <Field label="Pinterest Tag" hint="من Pinterest Ads ← Conversions — أرقام فقط">
+                <Input name="pinterestTagId" dir="ltr" inputMode="numeric" defaultValue={s.pinterestTagId} placeholder="2612345678901" />
+              </Field>
+              <Field label="Google Analytics 4" hint="من Google Analytics ← Admin ← Data streams ← Measurement ID">
+                <Input name="googleAnalyticsId" dir="ltr" defaultValue={s.googleAnalyticsId} placeholder="G-XXXXXXXXXX" />
+              </Field>
+              <Field label="Google Tag Manager" hint="معرّف الحاوية — لمن يدير وسومه من GTM">
+                <Input name="googleTagManagerId" dir="ltr" defaultValue={s.googleTagManagerId} placeholder="GTM-XXXXXXX" />
+              </Field>
+              <Field label="Google Ads" hint="معرّف التحويل (Conversion ID)">
+                <Input name="googleAdsId" dir="ltr" defaultValue={s.googleAdsId} placeholder="AW-123456789" />
+              </Field>
+              <Field label="Google Ads — تسمية تحويل الشراء" hint="الجزء بعد الشرطة المائلة في send_to — أو الصق AW-…/… كاملًا">
+                <Input name="googleAdsPurchaseLabel" dir="ltr" defaultValue={s.googleAdsPurchaseLabel} placeholder="AbCdEfGhIjKlMnOp" />
+              </Field>
+            </div>
+
             <p className="text-[11px] leading-relaxed text-ink-mute">
-              عند إضافة المعرّف تُرسل الأحداث تلقائيًا: PageView، ViewContent، AddToCart، InitiateCheckout، Purchase.
+              اترك أي خانة فارغة لتعطيل منصتها. عند إضافة المعرّف تُرسَل الأحداث تلقائيًا لكل منصة: زيارة الصفحة، عرض المنتج، البحث، الإضافة إلى
+              السلة، بدء إتمام الطلب، والشراء بقيمته (مرة واحدة لكل طلب). إن كنت تضيف Google Analytics داخل Tag Manager فلا تضف معرّف G- هنا
+              أيضًا حتى لا تُحتسب الأحداث مرتين.
             </p>
             <SubmitButton>حفظ</SubmitButton>
           </ActionForm>

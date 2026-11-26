@@ -9,6 +9,7 @@ import { TransitionProvider } from "@/components/site/Transition";
 import { SmoothScroll } from "@/components/site/SmoothScroll";
 import { Cursor } from "@/components/site/Cursor";
 import { Pixels } from "@/components/site/Pixels";
+import { validPixelIds } from "@/lib/pixel-ids";
 import { Preloader, PRELOADER_SCRIPT } from "@/components/site/Preloader";
 
 const NAV: NavLink[] = [
@@ -112,7 +113,7 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
         <CartDrawer />
         <SearchOverlay />
       </TransitionProvider>
-      <Pixels metaPixelId={settings.metaPixelId} tiktokPixelId={settings.tiktokPixelId} />
+      <Pixels ids={validPixelIds(settings)} />
     </>
   );
 }

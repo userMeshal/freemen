@@ -10,6 +10,7 @@ import { hashPassword, verifyPassword } from "@/lib/password";
 import { edfapayConfigured, moyasarKeysPresent, saveSettings, siteUrl } from "@/lib/settings";
 import { createWebhook, listWebhooks, resendWebhookVerification } from "@/lib/moyasar";
 import { toLatinDigits } from "@/lib/normalize";
+import { PIXEL_ID_RULES, PIXEL_KEYS, type PixelIds } from "@/lib/pixel-ids";
 import { addPushDevice, PushError, removePushDevice, sendPush } from "@/lib/push";
 import {
   disconnectTelegram,
@@ -69,21 +70,53 @@ export async function saveStoreInfoAction(_prev: ActionState, fd: FormData): Pro
   return ok("تم حفظ بيانات المتجر");
 }
 
-const marketingSchema = z.object({
-  announcement: z.string().max(200, "نص الشريط الإعلاني طويل جدًا (200 حرف كحد أقصى)"),
-  metaPixelId: z.string().regex(/^\d{0,20}$/, "معرّف Meta Pixel يتكون من أرقام فقط"),
-  tiktokPixelId: z.string().regex(/^[A-Za-z0-9]{0,40}$/, "معرّف TikTok Pixel يتكون من أحرف إنجليزية وأرقام فقط"),
-});
+const PIXEL_LABELS: Record<keyof PixelIds, string> = {
+  metaPixelId: "معرّف Meta Pixel يتكون من أرقام فقط",
+  tiktokPixelId: "معرّف TikTok Pixel يتكون من أحرف إنجليزية وأرقام فقط",
+  snapPixelId: "معرّف Snap Pixel بهذه الصيغة: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+  googleAnalyticsId: "معرّف Google Analytics يبدأ بـ G- مثل G-AB12CD34EF",
+  googleAdsId: "معرّف Google Ads يبدأ بـ AW- متبوعًا بأرقام مثل AW-123456789",
+  googleAdsPurchaseLabel: "تسمية تحويل الشراء في Google Ads غير صحيحة — هي الجزء الذي بعد الشرطة المائلة",
+  googleTagManagerId: "معرّف Google Tag Manager يبدأ بـ GTM- مثل GTM-AB12CD3",
+  xPixelId: "معرّف X Pixel أحرف إنجليزية صغيرة وأرقام مثل o1abc",
+  xPurchaseEventId: "معرّف حدث الشراء في X بهذه الصيغة: tw-xxxxx-yyyyy",
+  pinterestTagId: "معرّف Pinterest Tag يتكون من أرقام فقط",
+};
 
 export async function saveMarketingAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
   await requireAdmin();
-  const parsed = marketingSchema.safeParse({
-    announcement: str(fd, "announcement"),
-    metaPixelId: toLatinDigits(str(fd, "metaPixelId")),
-    tiktokPixelId: str(fd, "tiktokPixelId").toUpperCase(),
-  });
-  if (!parsed.success) return fail(firstError(parsed.error));
-  await saveSettings(parsed.data);
+  const announcement = str(fd, "announcement");
+  if (announcement.length > 200) return fail("نص الشريط الإعلاني طويل جدًا (200 حرف كحد أقصى)");
+
+  const raw = (key: keyof PixelIds) => toLatinDigits(str(fd, key)).replace(/\s+/g, "");
+  // يُقبل لصق «AW-123456789/AbCdEf» كاملًا في أي من خانتَي Google Ads
+  let googleAdsId = raw("googleAdsId").toUpperCase();
+  let googleAdsPurchaseLabel = raw("googleAdsPurchaseLabel");
+  if (googleAdsId.includes("/")) [googleAdsId, googleAdsPurchaseLabel] = [googleAdsId.split("/")[0], googleAdsPurchaseLabel || raw("googleAdsId").split("/")[1]];
+  if (googleAdsPurchaseLabel.includes("/")) googleAdsPurchaseLabel = googleAdsPurchaseLabel.split("/").pop() ?? "";
+
+  const ids: PixelIds = {
+    metaPixelId: raw("metaPixelId"),
+    tiktokPixelId: raw("tiktokPixelId").toUpperCase(),
+    snapPixelId: raw("snapPixelId").toLowerCase(),
+    googleAnalyticsId: raw("googleAnalyticsId").toUpperCase(),
+    googleAdsId,
+    googleAdsPurchaseLabel,
+    googleTagManagerId: raw("googleTagManagerId").toUpperCase(),
+    xPixelId: raw("xPixelId").toLowerCase(),
+    xPurchaseEventId: raw("xPurchaseEventId").toLowerCase(),
+    pinterestTagId: raw("pinterestTagId"),
+  };
+  for (const key of PIXEL_KEYS) {
+    if (ids[key] && !PIXEL_ID_RULES[key].test(ids[key])) return fail(PIXEL_LABELS[key]);
+  }
+  if (ids.googleAdsPurchaseLabel && !ids.googleAdsId) return fail("أضف معرّف Google Ads (AW-…) مع تسمية التحويل");
+  if (ids.xPurchaseEventId && !ids.xPixelId) return fail("أضف معرّف X Pixel مع معرّف حدث الشراء");
+  if (ids.xPurchaseEventId && ids.xPixelId && !ids.xPurchaseEventId.startsWith(`tw-${ids.xPixelId}-`)) {
+    return fail("معرّف حدث الشراء في X لا يخص هذا البكسل — يجب أن يبدأ بـ tw-" + ids.xPixelId + "-");
+  }
+
+  await saveSettings({ announcement, ...ids });
   refresh();
   revalidatePath("/", "layout");
   return ok("تم حفظ إعدادات الإعلان والتتبع");
