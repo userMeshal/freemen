@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { settings, type orderItems, type orders } from "@/db/schema";
+import { sourceText } from "@/lib/attribution";
 import { formatSar } from "@/lib/money";
 import { displayPhone } from "@/lib/normalize";
 import { siteUrl } from "@/lib/settings";
@@ -161,6 +162,7 @@ export async function sendTelegramOrder(order: OrderRow, items: OrderItemRow[]):
     "",
     `العميل: ${esc(order.customerName)} — ${esc(displayPhone(order.customerPhone))}`,
     address?.city ? `المدينة: ${esc(address.city)}` : null,
+    order.attribution ? `المصدر: ${esc(sourceText(order.attribution))}${order.attribution.campaign ? ` — ${esc(order.attribution.campaign)}` : ""}` : null,
     "",
     ...lines,
     "",

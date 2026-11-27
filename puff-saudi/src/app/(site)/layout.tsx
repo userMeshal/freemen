@@ -8,6 +8,7 @@ import { SearchOverlay } from "@/components/site/SearchOverlay";
 import { TransitionProvider } from "@/components/site/Transition";
 import { SmoothScroll } from "@/components/site/SmoothScroll";
 import { Cursor } from "@/components/site/Cursor";
+import { Attribution } from "@/components/site/Attribution";
 import { Pixels } from "@/components/site/Pixels";
 import { validPixelIds } from "@/lib/pixel-ids";
 import { Preloader, PRELOADER_SCRIPT } from "@/components/site/Preloader";
@@ -113,6 +114,7 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
         <CartDrawer />
         <SearchOverlay />
       </TransitionProvider>
+      <Attribution />
       <Pixels ids={validPixelIds(settings)} />
     </>
   );

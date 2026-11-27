@@ -273,7 +273,8 @@ async function fillCheckout(page, { phone = "0551234567", email = "buyer@example
   watch(m, "mobile");
   const cspBlocks = [];
   m.on("console", (msg) => /Content Security Policy/i.test(msg.text()) && cspBlocks.push(msg.text().slice(0, 160)));
-  const homeRes = await m.goto(`${BASE}/`, { waitUntil: "networkidle" });
+  // الزائر يدخل من إعلان تيك توك: معرّف النقرة + وسوم UTM في الرابط
+  const homeRes = await m.goto(`${BASE}/?ttclid=E2ECLICK&utm_source=tiktok&utm_medium=paid&utm_campaign=white-friday`, { waitUntil: "networkidle" });
   await m.waitForTimeout(2800);
   let px = await pixelQueues(m);
   check("البكسلات: سكربتات المنصات الست كلها في الصفحة", ["connect.facebook.net", "analytics.tiktok.com", "sc-static.net/scevent.min.js", "googletagmanager.com/gtag/js?id=G-TEST123456", "googletagmanager.com/gtm.js?id=GTM-TEST123", "static.ads-twitter.com/uwt.js", "s.pinimg.com/ct/core.js"].every((u) => px.scripts.some((src) => src.includes(u))), px.scripts.filter((u) => !u.includes("localhost")).join(" "));
@@ -377,10 +378,12 @@ async function fillCheckout(page, { phone = "0551234567", email = "buyer@example
   const pinBuy = has(px.pin, "track", "checkout");
   check("البكسلات: الشراء لـ Pinterest", !!pinBuy && pinBuy[2].order_id === codNumber && pinBuy[2].value === 183.8 && pinBuy[2].order_quantity === 3, JSON.stringify(pinBuy));
   check("البكسلات: سياسة الأمان لم تحجب أي سكربت", cspBlocks.length === 0, cspBlocks.join(" | "));
+  check("المصدر: طلب من إعلان تيك توك يُكتب عليه مصدره وحملته", codOrder.source === "tiktok" && codOrder.attribution.paid === true && codOrder.attribution.via === "click_id" && codOrder.attribution.campaign === "white-friday" && codOrder.attribution.landing === "/", JSON.stringify([codOrder.source, codOrder.attribution]));
   const codPush = await pushWaitFor(codNumber);
   check("إشعارات الجوال: إشعار طلب الدفع عند الاستلام بالمبلغ", !!codPush && codPush.data.title.includes("183.80") && codPush.data.body.includes("الدفع عند الاستلام") && codPush.data.url === `/admin/orders/${codOrder.id}`, codPush && JSON.stringify(codPush.data));
   const codMsg = await tgWaitFor(codNumber);
   check("تيليجرام: إشعار طلب الدفع عند الاستلام وصل", !!codMsg);
+  check("المصدر: يظهر في إشعار الجوال وفي تيليجرام", !!codPush && codPush.data.body.includes("من تيك توك · إعلان") && !!codMsg && codMsg.text.includes("المصدر: تيك توك · إعلان — white-friday"), JSON.stringify([codPush && codPush.data.body, codMsg && codMsg.text]));
   check("تيليجرام: الإشعار فيه المبلغ وطريقة الدفع ورابط الطلب", !!codMsg && codMsg.text.includes("183.80") && codMsg.text.includes("عند الاستلام") && codMsg.text.includes(`/admin/orders/${codOrder.id}`), codMsg && codMsg.text);
   check("خصم الكوبون 3720 والشحن 2500 ورسوم COD 1000", codOrder.discount === 3720 && codOrder.shipping === 2500 && codOrder.cod_fee === 1000);
   check("الجوال مخزَّن بصيغة موحدة", codOrder.customer_phone === "966551234567");
@@ -416,8 +419,18 @@ async function fillCheckout(page, { phone = "0551234567", email = "buyer@example
   console.log("\n[4] اللوحة: إدارة الطلب");
   await admin.goto(`${BASE}/admin/orders`);
   check("الطلب يظهر في قائمة الطلبات", (await admin.locator("body").innerText()).includes(codNumber));
+  check("المصدر: يظهر في قائمة الطلبات", (await admin.locator("tr", { hasText: codNumber }).innerText()).includes("تيك توك · إعلان"));
+  await admin.goto(`${BASE}/admin/orders?source=tiktok`);
+  check("المصدر: التصفية بالمنصة تعرض طلباتها", (await admin.locator("table").innerText()).includes(codNumber));
+  await admin.goto(`${BASE}/admin/orders?source=snapchat`);
+  check("المصدر: والتصفية بمنصة أخرى تخفيها", !(await admin.locator("main").innerText()).includes(codNumber));
+  await admin.goto(`${BASE}/admin`);
+  const srcCard = admin.locator("section", { hasText: "مصادر الطلبات" });
+  check("المصدر: جدول المنصات في الرئيسية يعرض تيك توك", (await srcCard.locator("tr", { hasText: "تيك توك" }).count()) === 1, (await srcCard.innerText()).replace(/\s+/g, " ").slice(0, 200));
   await admin.goto(`${BASE}/admin/orders/${codOrder.id}`);
   await admin.waitForTimeout(800);
+  const srcDetail = await admin.locator("section", { hasText: "مصدر الطلب" }).first().innerText();
+  check("المصدر: صفحة الطلب تعرض المنصة والحملة", srcDetail.includes("تيك توك") && srcDetail.includes("إعلان مدفوع") && srcDetail.includes("white-friday"), srcDetail.replace(/\s+/g, " ").slice(0, 200));
   const track = admin.locator("form").filter({ has: admin.locator('input[name="carrier"]') }).first();
   check("شركة الشحن معبّأة مسبقًا في نموذج التتبع", (await track.locator('input[name="carrier"]').inputValue()) === "سمسا");
   await track.locator('input[name="number"]').fill("SMSA123456789");
@@ -467,6 +480,7 @@ async function fillCheckout(page, { phone = "0551234567", email = "buyer@example
   check("التحويل إلى صفحة الدفع المستضافة", true);
   const pending = (await sql`select * from orders order by id desc limit 1`)[0];
   check("الطلب محفوظ «غير مدفوع» قبل الدفع", pending.payment_status === "unpaid" && pending.payment_method === "edfapay");
+  check("المصدر: زائر كتب الرابط مباشرة ← «مباشر»", pending.source === "direct" && pending.attribution.paid === false, JSON.stringify([pending.source, pending.attribution]));
   // رفض ثم إعادة محاولة ثم قبول
   await d.click("#decline");
   await d.waitForURL(/\/checkout\/return/, { timeout: 15000 });
@@ -527,7 +541,8 @@ async function fillCheckout(page, { phone = "0551234567", email = "buyer@example
     await page.locator('.mysr-form button[type="submit"]').click();
   };
   const startMoyasarOrder = async (phone) => {
-    await d.goto(`${BASE}/p/sippy-550-22`, { waitUntil: "networkidle" });
+    // نفس الزائر يعود لاحقًا من إعلان سناب شات: آخر مصدر غير مباشر هو المعتمد
+    await d.goto(`${BASE}/p/sippy-550-22?utm_source=snapchat&utm_medium=cpc&utm_campaign=snap-video`, { waitUntil: "networkidle" });
     await d.waitForTimeout(1000);
     await d.getByRole("button", { name: "اشترِ الآن" }).click();
     await d.waitForURL(/\/checkout$/, { timeout: 15000 });
@@ -544,6 +559,7 @@ async function fillCheckout(page, { phone = "0551234567", email = "buyer@example
   check("ميسر: الانتقال لصفحة الدفع داخل الموقع", true);
   let mo = (await sql`select * from orders where number=${mNum}`)[0];
   check("ميسر: الطلب محفوظ «غير مدفوع» بطريقة moyasar", mo.payment_method === "moyasar" && mo.payment_status === "unpaid");
+  check("المصدر: العودة من بوابة الدفع لا تغيّر المصدر، وإعلان سناب يُسجَّل", mo.source === "snapchat" && mo.attribution.paid === true && mo.attribution.via === "utm" && mo.attribution.campaign === "snap-video", JSON.stringify([mo.source, mo.attribution]));
   // بطاقة مرفوضة
   await payCard(d, "4000000000000002");
   await d.waitForURL(/\/checkout\/return/, { timeout: 25000 });

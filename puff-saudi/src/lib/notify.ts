@@ -3,6 +3,7 @@ import { after } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { orderItems, orders } from "@/db/schema";
+import { sourceText } from "@/lib/attribution";
 import { formatSar } from "@/lib/money";
 import { sendPush } from "@/lib/push";
 import { sendTelegramOrder } from "@/lib/telegram";
@@ -20,7 +21,14 @@ export async function notifyNewOrder(orderId: number): Promise<void> {
     const results = await Promise.allSettled([
       sendPush({
         title: `طلب جديد ${order.number} — ${formatSar(order.total)}`,
-        body: [order.paymentMethod === "cod" ? "الدفع عند الاستلام" : "مدفوع إلكترونيًا", order.customerName, city].filter(Boolean).join(" · "),
+        body: [
+          order.paymentMethod === "cod" ? "الدفع عند الاستلام" : "مدفوع إلكترونيًا",
+          order.customerName,
+          city,
+          order.attribution ? `من ${sourceText(order.attribution, true)}` : null,
+        ]
+          .filter(Boolean)
+          .join(" · "),
         url: `/admin/orders/${order.id}`,
         tag: `order-${order.id}`,
       }),
