@@ -4,7 +4,15 @@ import { db } from "@/db";
 import { customers, orders, products, variants } from "@/db/schema";
 import { cancelStaleUnpaidOrders, ORDER_STATUS_LABEL, PAYMENT_STATUS_LABEL } from "@/lib/orders";
 import { formatAmount, formatSar } from "@/lib/money";
-import { CONFIRMED_ORDER_SQL, fmtDateTime, ORDER_STATUS_TONE, PAYMENT_STATUS_TONE, REVENUE_SQL } from "@/lib/admin-utils";
+import {
+  ABANDONED_ORDER_SQL,
+  CONFIRMED_ORDER_SQL,
+  fmtDateTime,
+  ORDER_STATUS_TONE,
+  PAYMENT_STATUS_TONE,
+  REVENUE_SQL,
+} from "@/lib/admin-utils";
+import { SOURCE_KEYS, SOURCE_LABEL, type SourceKey } from "@/lib/attribution";
 import { Badge, Card, EmptyState, LinkButton, PageHeader, Stat, Table, Td, Th } from "@/components/admin/ui";
 
 export const metadata = { title: "الرئيسية" };
@@ -22,7 +30,7 @@ export default async function AdminDashboardPage() {
   await cancelStaleUnpaidOrders().catch(() => 0);
 
   const revenue = dsql.raw(REVENUE_SQL);
-  const [kpiRows, chartRows, latest, lowStock, customerCount] = await Promise.all([
+  const [kpiRows, chartRows, latest, lowStock, customerCount, sourceRows] = await Promise.all([
     db.execute(dsql`
       select
         coalesce(sum(total) filter (where ${revenue}
@@ -66,7 +74,24 @@ export default async function AdminDashboardPage() {
       .orderBy(asc(variants.stock))
       .limit(10),
     db.select({ c: dsql<number>`count(*)::int` }).from(customers),
+    // مصادر الطلبات آخر 30 يومًا: طلبات محتسبة في المبيعات، ومن وصلوا للدفع ولم يكملوا
+    db.execute(dsql`
+      select coalesce(source, 'unknown') as source,
+        count(*) filter (where ${revenue})::int as orders,
+        coalesce(sum(total) filter (where ${revenue}), 0)::bigint as total,
+        count(*) filter (where ${revenue} and attribution->>'paid' = 'true')::int as paid,
+        count(*) filter (where ${dsql.raw(ABANDONED_ORDER_SQL)})::int as abandoned
+      from orders
+      where created_at >= now() - interval '30 days'
+      group by 1
+    `),
   ]);
+  const sources = (sourceRows as unknown as { source: string; orders: number; total: string; paid: number; abandoned: number }[])
+    .map((r) => ({ ...r, total: Number(r.total) }))
+    .filter((r) => r.orders > 0 || r.abandoned > 0)
+    .sort((x, y) => y.total - x.total || y.orders - x.orders);
+  const sourcesTotal = sources.reduce((sum, r) => sum + r.total, 0);
+  const sourceName = (key: string) => (SOURCE_KEYS.includes(key as SourceKey) ? SOURCE_LABEL[key as SourceKey] : "غير معروف");
 
   const k = (kpiRows as unknown as Kpis[])[0];
   const today = Number(k?.today ?? 0);
@@ -156,6 +181,45 @@ export default async function AdminDashboardPage() {
           )}
         </Card>
       </div>
+
+      <Card title="مصادر الطلبات — آخر 30 يومًا" className="mt-6" padded={false}>
+        {sources.length ? (
+          <Table>
+            <thead>
+              <tr>
+                <Th>المصدر</Th>
+                <Th>الطلبات</Th>
+                <Th>منها من إعلان</Th>
+                <Th>المبيعات</Th>
+                <Th>الحصة</Th>
+                <Th>لم يكملوا الدفع</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {sources.map((r) => (
+                <tr key={r.source} className="hover:bg-paper-card">
+                  <Td>
+                    <Link href={`/admin/orders?source=${r.source}`} className="font-bold hover:underline">
+                      {sourceName(r.source)}
+                    </Link>
+                  </Td>
+                  <Td>{r.orders.toLocaleString("en-US")}</Td>
+                  <Td className="text-ink-mute">{r.paid.toLocaleString("en-US")}</Td>
+                  <Td className="whitespace-nowrap font-semibold">{formatSar(r.total)}</Td>
+                  <Td className="text-ink-mute">{sourcesTotal ? `${Math.round((r.total / sourcesTotal) * 100)}%` : "—"}</Td>
+                  <Td className="text-ink-mute">{r.abandoned.toLocaleString("en-US")}</Td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        ) : (
+          <EmptyState>لا توجد طلبات في آخر 30 يومًا.</EmptyState>
+        )}
+        <p className="px-5 pb-4 pt-2 text-[11px] leading-relaxed text-ink-mute">
+          المصدر هو آخر منصة جاء منها العميل خلال 30 يومًا قبل الطلب. «غير معروف» = طلبات قبل تفعيل هذه الميزة. «من إعلان» تُحتسب فقط عندما يحمل
+          الرابط دليل نقرة إعلان؛ لتفاصيل الحملة أضف وسوم UTM لروابط إعلاناتك.
+        </p>
+      </Card>
 
       <Card title="أحدث الطلبات" className="mt-6" padded={false} actions={<LinkButton href="/admin/orders" size="sm">عرض الكل</LinkButton>}>
         {latest.length ? (

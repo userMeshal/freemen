@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { BellRing } from "lucide-react";
-import { and, desc, eq, ilike, or, sql as dsql, type SQL } from "drizzle-orm";
+import { and, desc, eq, ilike, isNull, or, sql as dsql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import { orders, type OrderStatus, type PaymentStatus } from "@/db/schema";
 import { cancelStaleUnpaidOrders, ORDER_STATUS_LABEL, PAYMENT_STATUS_LABEL } from "@/lib/orders";
+import { SOURCE_KEYS, SOURCE_LABEL, sourceText, type SourceKey } from "@/lib/attribution";
 import { formatSar } from "@/lib/money";
 import { displayPhone, toLatinDigits } from "@/lib/normalize";
 import {
@@ -40,6 +41,7 @@ export default async function AdminOrdersPage({
   const q = one(sp.q);
   const status = one(sp.status);
   const payment = one(sp.payment);
+  const source = one(sp.source);
   const page = pageNumber(sp.page);
   const viewParam = one(sp.view);
   const view: View = viewParam === "abandoned" || viewParam === "all" ? viewParam : "confirmed";
@@ -59,6 +61,8 @@ export default async function AdminOrdersPage({
   }
   if (STATUSES.includes(status as OrderStatus)) conds.push(eq(orders.status, status as OrderStatus));
   if (PAYMENTS.includes(payment as PaymentStatus)) conds.push(eq(orders.paymentStatus, payment as PaymentStatus));
+  if (SOURCE_KEYS.includes(source as SourceKey)) conds.push(eq(orders.source, source));
+  else if (source === "unknown") conds.push(isNull(orders.source));
   const where = conds.length ? and(...conds) : undefined;
 
   const [rows, total, tabCounts] = await Promise.all([
@@ -79,7 +83,7 @@ export default async function AdminOrdersPage({
       .from(orders),
   ]);
   const count = total[0]?.c ?? 0;
-  const filtered = Boolean(q || status || payment);
+  const filtered = Boolean(q || status || payment || source);
   const basePath = view === "confirmed" ? "/admin/orders" : `/admin/orders?view=${view}`;
   const tabs: { key: View; label: string; href: string; n: number }[] = [
     { key: "confirmed", label: "الطلبات", href: "/admin/orders", n: tabCounts[0]?.confirmed ?? 0 },
@@ -125,7 +129,7 @@ export default async function AdminOrdersPage({
       </p>
 
       <Card className="mb-4">
-        <form method="get" className={`grid gap-3 ${abandoned ? "md:grid-cols-[1fr_auto]" : "md:grid-cols-[1fr_180px_180px_auto]"}`}>
+        <form method="get" className={`grid gap-3 ${abandoned ? "md:grid-cols-[1fr_180px_auto]" : "md:grid-cols-[1fr_160px_160px_160px_auto]"}`}>
           {view !== "confirmed" ? <input type="hidden" name="view" value={view} /> : null}
           <Input name="q" defaultValue={q} placeholder="بحث برقم الطلب، الجوال أو الاسم" aria-label="بحث" />
           {abandoned ? null : (
@@ -148,6 +152,15 @@ export default async function AdminOrdersPage({
               </Select>
             </>
           )}
+          <Select name="source" defaultValue={source} aria-label="مصدر الطلب">
+            <option value="">كل المصادر</option>
+            {SOURCE_KEYS.map((k) => (
+              <option key={k} value={k}>
+                {SOURCE_LABEL[k]}
+              </option>
+            ))}
+            <option value="unknown">غير معروف</option>
+          </Select>
           <div className="flex gap-2">
             <button type="submit" className={btnCls("dark")}>
               تصفية
@@ -169,6 +182,7 @@ export default async function AdminOrdersPage({
                 <Th>الحالة</Th>
                 <Th>الدفع</Th>
                 <Th>الطريقة</Th>
+                <Th>المصدر</Th>
                 <Th>التاريخ</Th>
                 {abandoned ? <Th>تواصل</Th> : null}
               </tr>
@@ -193,6 +207,13 @@ export default async function AdminOrdersPage({
                     <Badge tone={PAYMENT_STATUS_TONE[o.paymentStatus]}>{PAYMENT_STATUS_LABEL[o.paymentStatus]}</Badge>
                   </Td>
                   <Td className="whitespace-nowrap text-ink-mute">{o.paymentMethod === "cod" ? "عند الاستلام" : "إلكتروني"}</Td>
+                  <Td className="whitespace-nowrap">
+                    {o.attribution ? (
+                      <Badge tone={o.attribution.paid ? "lime" : o.attribution.platform === "direct" ? "neutral" : "blue"}>{sourceText(o.attribution, true)}</Badge>
+                    ) : (
+                      <span className="text-ink-mute">—</span>
+                    )}
+                  </Td>
                   <Td className="whitespace-nowrap text-ink-mute">{fmtDateTime(o.createdAt)}</Td>
                   {abandoned ? (
                     <Td>
@@ -215,7 +236,7 @@ export default async function AdminOrdersPage({
             {filtered ? "لا توجد نتائج مطابقة للتصفية." : abandoned ? "لا توجد سلات متروكة." : "لا توجد طلبات بعد."}
           </EmptyState>
         )}
-        <Pagination page={page} totalPages={Math.ceil(count / PER_PAGE)} basePath="/admin/orders" params={{ view: view === "confirmed" ? undefined : view, q, status, payment }} />
+        <Pagination page={page} totalPages={Math.ceil(count / PER_PAGE)} basePath="/admin/orders" params={{ view: view === "confirmed" ? undefined : view, q, status, payment, source }} />
       </Card>
     </>
   );

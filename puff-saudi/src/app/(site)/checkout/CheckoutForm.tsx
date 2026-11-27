@@ -9,6 +9,7 @@ import { CouponBox, Totals } from "@/components/site/OrderSummary";
 import { useCartQuote } from "@/components/site/useCartQuote";
 import { useCart } from "@/store/cart";
 import { pixel } from "@/lib/pixels";
+import { readAttribution } from "@/lib/attribution";
 import { formatAmount } from "@/lib/money";
 import { SAUDI_CITIES } from "@/lib/cities";
 import { placeOrderAction } from "./actions";
@@ -131,6 +132,7 @@ export function CheckoutForm({ prefill }: { prefill: Prefill }) {
         paymentMethod,
         ...form,
         note,
+        attribution: readAttribution(),
       }).catch(() => ({ ok: false as const, error: "تعذّر الاتصال. تحقق من الإنترنت ثم أعد المحاولة." }));
       if (res.ok) {
         setRedirecting(true);

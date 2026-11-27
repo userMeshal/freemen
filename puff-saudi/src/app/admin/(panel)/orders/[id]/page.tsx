@@ -6,6 +6,7 @@ import { ArrowRight, EyeOff } from "lucide-react";
 import { db } from "@/db";
 import { orderEvents, orderItems, orders, paymentAttempts, type OrderStatus } from "@/db/schema";
 import { ORDER_STATUS_LABEL, PAYMENT_METHOD_LABEL, PAYMENT_STATUS_LABEL } from "@/lib/orders";
+import { SOURCE_LABEL, type Attribution } from "@/lib/attribution";
 import { formatSar } from "@/lib/money";
 import { displayPhone } from "@/lib/normalize";
 import { fmtDateTime, ORDER_STATUS_TONE, PAYMENT_STATUS_TONE } from "@/lib/admin-utils";
@@ -23,6 +24,14 @@ import {
 export const metadata = { title: "تفاصيل الطلب" };
 
 const FLOW: Exclude<OrderStatus, "cancelled">[] = ["pending", "processing", "shipped", "delivered"];
+
+const VIA_LABEL: Record<Attribution["via"], string> = {
+  click_id: "معرّف نقرة أضافته المنصة للرابط",
+  utm: "وسوم UTM في رابط الإعلان",
+  app: "الرابط فُتح من داخل تطبيق المنصة",
+  referrer: "الموقع الذي جاء منه الزائر",
+  none: "دخول مباشر بلا مصدر",
+};
 
 export default async function AdminOrderPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: rawId } = await params;
@@ -196,6 +205,34 @@ export default async function AdminOrderPage({ params }: { params: Promise<{ id:
                   </ConfirmButton>
                 </ActionForm>
               </>
+            )}
+          </Card>
+
+          <Card title="مصدر الطلب">
+            {order.attribution ? (
+              <DefList
+                items={[
+                  ["المنصة", SOURCE_LABEL[order.attribution.platform]],
+                  ["النوع", order.attribution.paid ? <Badge key="p" tone="lime">إعلان مدفوع</Badge> : "غير محدد (زيارة عادية أو إعلان بلا وسم)"],
+                  ["كيف عُرف", VIA_LABEL[order.attribution.via]],
+                  ...(
+                    [
+                      ["الحملة", order.attribution.campaign],
+                      ["الإعلان / المحتوى", order.attribution.content],
+                      ["الكلمة", order.attribution.term],
+                      ["utm_source", order.attribution.source],
+                      ["utm_medium", order.attribution.medium],
+                      ["الموقع المُحيل", order.attribution.referrer],
+                      ["أول صفحة", order.attribution.landing],
+                    ] as [string, string | undefined][]
+                  )
+                    .filter(([, v]) => v)
+                    .map(([k, v]) => [k, <span key={k} dir="auto" className="break-all">{v}</span>] as [string, React.ReactNode]),
+                  ["وقت الزيارة", fmtDateTime(order.attribution.at)],
+                ]}
+              />
+            ) : (
+              <p className="text-sm text-ink-mute">غير معروف — الطلب أُنشئ قبل تفعيل تسجيل المصدر، أو أن متصفح العميل يمنع التخزين.</p>
             )}
           </Card>
 

@@ -11,6 +11,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
+import type { Attribution } from "@/lib/attribution";
 
 /* كل المبالغ تُخزَّن بالهللة (عدد صحيح): 146.00 ر.س = 14600 */
 
@@ -193,6 +194,10 @@ export const orders = pgTable(
     gatewayTransactionId: text("gateway_transaction_id"),
     customerNote: text("customer_note"),
     adminNote: text("admin_note"),
+    /** المنصة التي جاء منها العميل (tiktok / meta / snapchat …) — null للطلبات الأقدم من هذه الميزة */
+    source: text("source"),
+    /** تفاصيل المصدر: الحملة، هل هي نقرة إعلان، الصفحة الأولى… (lib/attribution.ts) */
+    attribution: jsonb("attribution").$type<Attribution>(),
     stockReleased: boolean("stock_released").notNull().default(false),
     paidAt: timestamp("paid_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -202,6 +207,7 @@ export const orders = pgTable(
     index("orders_customer_idx").on(t.customerId),
     index("orders_status_idx").on(t.status),
     index("orders_created_idx").on(t.createdAt),
+    index("orders_source_idx").on(t.source),
   ],
 );
 

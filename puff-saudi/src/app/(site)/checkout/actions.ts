@@ -1,5 +1,6 @@
 "use server";
 
+import { cleanAttribution } from "@/lib/attribution";
 import { queueOrderNotification } from "@/lib/notify";
 import { z } from "zod";
 import { and, eq, sql as dsql } from "drizzle-orm";
@@ -40,6 +41,8 @@ const checkoutSchema = z.object({
     .transform((v) => v.replace(/[<>]/g, ""))
     .optional(),
   note: z.string().trim().max(500).optional(),
+  /** مصدر الزيارة كما حفظه المتصفح — يُنظَّف بـ cleanAttribution قبل الحفظ، ولا يُرفض الطلب بسببه أبدًا */
+  attribution: z.unknown().optional(),
 });
 
 export type CheckoutInput = z.input<typeof checkoutSchema>;
@@ -146,6 +149,7 @@ export async function placeOrderAction(input: CheckoutInput): Promise<CheckoutRe
       address: { city: data.city, shortAddress, ...(data.street ? { street: data.street } : {}) },
       note: data.note,
       loggedInCustomerId: customer?.id ?? null,
+      attribution: cleanAttribution(data.attribution),
     });
   } catch (e) {
     if (e instanceof CheckoutError) return { ok: false, error: e.message, code: e.code };

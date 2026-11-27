@@ -18,6 +18,7 @@ import {
 import { quoteCart } from "./pricing";
 import { randomToken } from "./password";
 import type { CartLineInput } from "./types";
+import type { Attribution } from "./attribution";
 
 export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
   pending: "قيد المراجعة",
@@ -60,6 +61,8 @@ export type CreateOrderInput = {
   address: Address;
   note?: string | null;
   loggedInCustomerId?: number | null;
+  /** مصدر العميل (المنصة الإعلانية) كما التقطه المتصفح، بعد تنظيفه */
+  attribution?: Attribution | null;
 };
 
 export async function createOrder(input: CreateOrderInput) {
@@ -166,6 +169,8 @@ export async function createOrder(input: CreateOrderInput) {
         couponCode: quote.coupon?.code ?? null,
         shippingMethodName: selectedShipping.name,
         customerNote: input.note || null,
+        source: input.attribution?.platform ?? null,
+        attribution: input.attribution ?? null,
       })
       .returning();
     const number = `PF${100000 + inserted[0].id}`;
